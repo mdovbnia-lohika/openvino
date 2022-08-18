@@ -37,16 +37,34 @@ ParamsKey ResampleKernelOpt::GetSupportedKey() const {
     k.EnableOutputDataType(Datatype::F32);
     k.EnableOutputDataType(Datatype::UINT8);
     k.EnableOutputDataType(Datatype::INT8);
+
     k.EnableInputLayout(DataLayout::b_fs_yx_fsv16);
     k.EnableInputLayout(DataLayout::b_fs_yx_fsv32);
+    k.EnableInputLayout(DataLayout::bs_fs_yx_bsv16_fsv16);
     k.EnableInputLayout(DataLayout::bs_fs_yx_bsv32_fsv16);
     k.EnableInputLayout(DataLayout::bs_fs_yx_bsv32_fsv32);
     k.EnableInputLayout(DataLayout::fs_b_yx_fsv32);
     k.EnableOutputLayout(DataLayout::b_fs_yx_fsv16);
     k.EnableOutputLayout(DataLayout::b_fs_yx_fsv32);
+    k.EnableOutputLayout(DataLayout::bs_fs_yx_bsv16_fsv16);
     k.EnableOutputLayout(DataLayout::bs_fs_yx_bsv32_fsv16);
     k.EnableOutputLayout(DataLayout::bs_fs_yx_bsv32_fsv32);
     k.EnableOutputLayout(DataLayout::fs_b_yx_fsv32);
+
+    // 5d formats
+    k.EnableInputLayout(DataLayout::b_fs_zyx_fsv16);
+    k.EnableOutputLayout(DataLayout::b_fs_zyx_fsv16);
+    k.EnableInputLayout(DataLayout::bs_fs_zyx_bsv16_fsv16);
+    k.EnableOutputLayout(DataLayout::bs_fs_zyx_bsv16_fsv16);
+    k.EnableInputLayout(DataLayout::bs_fs_zyx_bsv32_fsv16);
+    k.EnableOutputLayout(DataLayout::bs_fs_zyx_bsv32_fsv16);
+    k.EnableInputLayout(DataLayout::b_fs_zyx_fsv32);
+    k.EnableOutputLayout(DataLayout::b_fs_zyx_fsv32);
+    k.EnableInputLayout(DataLayout::bs_fs_zyx_bsv16_fsv32);
+    k.EnableOutputLayout(DataLayout::bs_fs_zyx_bsv16_fsv32);
+    k.EnableInputLayout(DataLayout::bs_fs_zyx_bsv32_fsv32);
+    k.EnableOutputLayout(DataLayout::bs_fs_zyx_bsv32_fsv32);
+
     k.EnableDifferentTypes();
     k.EnableTensorOffset();
     k.EnableTensorPitches();
@@ -66,6 +84,7 @@ ResampleKernelBase::DispatchData ResampleKernelOpt::SetDefault(const kernel_sele
     auto out_layout = arg.outputs[0].GetLayout();
     std::vector<std::vector<Tensor::DataChannelName>> dims_by_gws;
 
+    size_t dims = arg.outputs[0].Dimentions();
     const auto& out = arg.outputs[0];
 
     if (arg.resampleType == ResampleType::CAFFE_BILINEAR_INTERP) {
@@ -83,7 +102,11 @@ ResampleKernelBase::DispatchData ResampleKernelOpt::SetDefault(const kernel_sele
             opt_x_block_size = GetOptimalDivisor(out.X().v, 32);
         }
 
-        dispatchData.gws[0] = CeilDiv(out.X().v, opt_x_block_size) * out.Y().v;
+        if (dims == 5) {
+            dispatchData.gws[0] = CeilDiv(out.X().v, opt_x_block_size) * out.Y().v * out.Z().v;
+        } else {
+            dispatchData.gws[0] = CeilDiv(out.X().v, opt_x_block_size) * out.Y().v;
+        }
         dispatchData.gws[1] = Align(out.Feature().v, sub_group_size);
         dispatchData.gws[2] = arg.outputs[0].Batch().v;
 
@@ -92,7 +115,9 @@ ResampleKernelBase::DispatchData ResampleKernelOpt::SetDefault(const kernel_sele
         dispatchData.lws[2] = 1;
 
         if (arg.outputs[0].GetLayout() == DataLayout::bs_fs_yx_bsv32_fsv16
-            || arg.outputs[0].GetLayout() == DataLayout::bs_fs_yx_bsv32_fsv32) {
+            || arg.outputs[0].GetLayout() == DataLayout::bs_fs_yx_bsv32_fsv32
+            || arg.outputs[0].GetLayout() == DataLayout::bs_fs_zyx_bsv32_fsv16
+            || arg.outputs[0].GetLayout() == DataLayout::bs_fs_zyx_bsv32_fsv32) {
             dispatchData.lws[2] = GetOptimalDivisor(dispatchData.gws[2]);
         }
     }
@@ -116,18 +141,23 @@ bool ResampleKernelOpt::Validate(const Params& p, const optional_params& o) cons
         return false;
 
     const auto& input = params.inputs[0];
+    const auto & output = params.outputs[0];
 
     if ((input.GetDType() == Datatype::UINT8 || input.GetDType() == Datatype::INT8) &&
         params.resampleType != ResampleType::NEAREST_NEIGHBOR &&
-        params.resampleType != ResampleType::BILINEAR_INTERP)
+        params.resampleType != ResampleType::BILINEAR_INTERP &&
+        params.resampleType != ResampleType::LINEAR_ONNX)
         return false;
 
-    if (input.GetLayout() != DataLayout::fs_b_yx_fsv32 &&
-        input.GetLayout() != DataLayout::b_fs_yx_fsv16 &&
-        input.GetLayout() != DataLayout::b_fs_yx_fsv32 &&
-        input.GetLayout() != DataLayout::bs_fs_yx_bsv32_fsv16 &&
-        input.GetLayout() != DataLayout::bs_fs_yx_bsv32_fsv32)
+    // in the case of 5D support only NEAREST_NEIGHBOR and partially LINEAR_ONNX (interpolate X and Y axes)
+    if (input.Dimentions() == 5 &&
+         params.resampleType != ResampleType::NEAREST_NEIGHBOR &&
+         !(params.resampleType == ResampleType::LINEAR_ONNX &&
+           input.Batch().v == output.Batch().v &&
+           input.Feature().v == output.Feature().v &&
+           input.Z().v == output.Z().v))
         return false;
+
 
     return true;
 }
