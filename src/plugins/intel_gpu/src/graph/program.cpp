@@ -1445,7 +1445,7 @@ void program::set_layout_optimizer_attributes(layout_optimizer& lo) {
             prim.type() != cldnn::prior_box::type_id() &&
             prim.type() != cldnn::resample::type_id() &&
             prim.type() != cldnn::eye::type_id() &&
-            prim.type() != cldnn::generate_proposals::type_id()) &&
+            prim.type() != cldnn::generate_proposals::type_id() &&
             prim.type() != cldnn::tile::type_id()) {
             can_use_fsv16 = false;
         }
