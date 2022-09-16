@@ -42,20 +42,6 @@ bool MulticlassNmsKernelRef::Validate(const Params& p, const optional_params& o)
     return true;
 }
 
-//int calculateSelectedBoxesStaticDimension(const multiclass_nms_params& params) {
-//    int64_t max_output_boxes_per_class = 0;
-//    if (params.nms_top_k >= 0)
-//        max_output_boxes_per_class = std::min((int)param.num_boxes, param.nms_top_k);
-//    else
-//        max_output_boxes_per_class = param.num_boxes;
-//
-//    auto max_output_boxes_per_batch = max_output_boxes_per_class * param.num_classes;
-//    if (param.keep_top_k >= 0)
-//        max_output_boxes_per_batch = std::min<int>(max_output_boxes_per_batch, param.keep_top_k);
-//
-//    const auto dim = max_output_boxes_per_batch * param.num_batches;
-//}
-
 JitConstants MulticlassNmsKernelRef::GetJitConstants(const multiclass_nms_params& params) const {
     JitConstants jit = MakeBaseParamsJitConstants(params);
 
@@ -134,7 +120,8 @@ void MulticlassNmsKernelRef::PrepareEverythingKernel(const multiclass_nms_params
     //    const size_t roi_count = params.inputs[kScoresInputIdx].Batch().v;
     //    const size_t class_count = params.num_classes;
 
-    PrepareKernelCommon(params, options, {1, 1, 1}, "MULTICLASS_STAGE_EVERYTHING", 0, kernel);
+    const std::vector<size_t> gws = {1, 1, 1};
+    PrepareKernelCommon(params, options, gws, "MULTICLASS_STAGE_EVERYTHING", 0, kernel);
 
     for (auto i = 0; i < 2 + params.has_roisnum + 2; ++i) {
         kernel.params.arguments.push_back({ArgumentDescriptor::Types::INPUT, (uint32_t)i});
@@ -169,10 +156,13 @@ KernelsData MulticlassNmsKernelRef::GetKernelsData(const Params& params, const o
     const auto num_classes = op_params.has_roisnum ? op_params.inputs[1].Batch().v : op_params.inputs[1].Feature().v;
     const auto num_boxes = op_params.inputs[0].Feature().v;
 
+    // buffer for BoxInfos
     kd.internalBufferDataType = Datatype::F32;
-
     kd.internalBufferSizes.resize(1);
-    kd.internalBufferSizes[0] =  (5*sizeof(double) + 3*sizeof(long)) * (num_batches * num_classes * num_boxes); // FIXME opoluektov more precice math plz
+    // FIXME opoluektov more precice math plz
+    const auto box_size = (4 + 1) * sizeof(double) + 3 * sizeof(long); // 5: coordinates + score; 3: class_idx, batch_idx, index
+    const auto total_boxes = num_batches * num_classes * num_boxes;
+    kd.internalBufferSizes[0] = box_size * total_boxes;
 
     //    kd.internalBufferSizes.resize(kBufferCount);
     //    kd.internalBufferSizes[kRefinedBoxesBufferIdx] = class_count * roi_count * 4 * sizeof(float);

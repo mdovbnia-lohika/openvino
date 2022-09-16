@@ -196,39 +196,49 @@ inline OUTPUT_INDICES_TYPE FUNC(nms)(const __global INPUT0_TYPE* boxes,
                                      OUTPUT_INDICES_TYPE batch_idx,
                                      OUTPUT_INDICES_TYPE class_idx,
                                      __global BoxInfo* box_info) {
-    size_t detection_count = 0;
+    size_t candidates_num = 0;
 
-    for (OUTPUT_INDICES_TYPE box_idx = 0; box_idx < NUM_BOXES; box_idx++) {
-        if (scores[box_idx] >= SCORE_THRESHOLD) { /* NOTE: ">=" instead of ">" used in PDPD */
-            __global BoxInfo* cur_box_info = box_info + detection_count;
-            cur_box_info->class_idx = class_idx;
-            cur_box_info->batch_idx = batch_idx;
-            cur_box_info->index = box_idx;
-            cur_box_info->score = scores[box_idx];
-            cur_box_info->xmin = boxes[4 * box_idx + 0];
-            cur_box_info->ymin = boxes[4 * box_idx + 1];
-            cur_box_info->xmax = boxes[4 * box_idx + 2];
-            cur_box_info->ymax = boxes[4 * box_idx + 3];
-
-//            printf("  cur_box_info ymax %f\n", cur_box_info->ymax);
-//            printf("  class_idx %d\n", class_idx);
-//            printf("  box_idx %d\n", box_idx);
-
-            ++detection_count;
+    for (OUTPUT_INDICES_TYPE box_idx = 0; box_idx < NUM_BOXES; ++box_idx) {
+        if (scores[box_idx] < SCORE_THRESHOLD) {
+            continue;
         }
+
+        __global BoxInfo* candidate_box = box_info + candidates_num;
+        candidate_box->class_idx = class_idx;
+        candidate_box->batch_idx = batch_idx;
+        candidate_box->index = box_idx;
+        candidate_box->score = scores[box_idx];
+        candidate_box->xmin = boxes[4 * box_idx + 0];
+        candidate_box->ymin = boxes[4 * box_idx + 1];
+        candidate_box->xmax = boxes[4 * box_idx + 2];
+        candidate_box->ymax = boxes[4 * box_idx + 3];
+
+        ++candidates_num;
     }
 
-    FUNC_CALL(quickSortIterative)(box_info, 0, detection_count - 1, true);
+    // threshold nms_top_k for each class
+    if (NMS_TOP_K > -1 && NMS_TOP_K < candidates_num) {
+        candidates_num = NMS_TOP_K;
+    }
 
-    if (NMS_TOP_K > -1)
-        detection_count = min((size_t)NMS_TOP_K, detection_count);
+    if (candidates_num <= 0) {  // early drop
+        return candidates_num;  // empty
+    }
 
-    //printf("detection count %d\n", detection_count);
+    // sort by score in current class - must be higher score/lower index first (std::greater<BoxInfo> in ref impl.)
+    FUNC_CALL(quickSortIterative)(box_info, 0, candidates_num - 1, true);
+
+    /* here should be priority_queue. Maybe quickSortIterative(..., true) do the same, but this should be checked
+    std::priority_queue<BoxInfo> sorted_boxes(candidate_boxes.begin(),
+                                              candidate_boxes.begin() + candiate_size,
+                                              std::less<BoxInfo>());
+    */
+
 
     INPUT0_TYPE adaptive_threshold = IOU_THRESHOLD;
 
     size_t selected_size = 0;
-    for (size_t i = 0; i < detection_count; ++i) {
+    for (size_t i = 0; i < candidates_num; ++i) {
         __global BoxInfo* next_candidate = box_info + i;
 
 //        printf("next_candidate.box: %f %f %f %f\n", next_candidate->xmin, next_candidate->ymin, next_candidate->xmax, next_candidate->ymax);
@@ -267,7 +277,8 @@ inline OUTPUT_INDICES_TYPE FUNC(multiclass_nms)(const __global INPUT0_TYPE* boxe
                                                 OUTPUT_INDICES_TYPE batch_idx,
                                                 __global BoxInfo* box_info) {
     OUTPUT_INDICES_TYPE detection_count = 0;
-    for (OUTPUT_INDICES_TYPE class_idx = 0; class_idx < NUM_CLASSES; ++class_idx) {
+
+    for (uint class_idx = 0; class_idx < NUM_CLASSES; ++class_idx) {
         if (class_idx == BACKGROUND_CLASS)
             continue;
 
@@ -290,27 +301,33 @@ inline OUTPUT_INDICES_TYPE FUNC(multiclass_nms)(const __global INPUT0_TYPE* boxe
     return detection_count;
 }
 
-KERNEL(whats_your_name_again)
-(const __global INPUT0_TYPE* boxes,
- const __global INPUT0_TYPE* scores,
- __global OUTPUT_INDICES_TYPE* selected_indices,
- __global OUTPUT_INDICES_TYPE* selected_num,
- __global BoxInfo* box_info,
- __global OUTPUT_TYPE* selected_outputs) {
-    OUTPUT_INDICES_TYPE offset = 0;
-    for (OUTPUT_INDICES_TYPE i = 0; i < NUM_BATCHES; ++i) {
-        const __global INPUT0_TYPE* boxesPtr = boxes + i * NUM_BOXES * 4;
-        const __global INPUT0_TYPE* scoresPtr = scores + i * NUM_CLASSES * NUM_BOXES;
+KERNEL(multiclass_nms_ref)(
+    const __global INPUT0_TYPE* boxes,
+    const __global INPUT1_TYPE* scores,
+#ifdef HAS_ROISNUM
+    const __global INPUT2_TYPE* roisnum,
+#endif
+    __global OUTPUT_INDICES_TYPE* selected_indices,
+    __global OUTPUT_INDICES_TYPE* selected_num,
+    __global BoxInfo* box_info, //internal buffer
+    __global OUTPUT_TYPE* selected_outputs) {
 
-        offset += (i == 0 ? 0 : selected_num[i - 1]);
-        //printf("offset: %d\n", offset);
-        OUTPUT_INDICES_TYPE nselected = FUNC_CALL(multiclass_nms)(boxesPtr, scoresPtr, i, box_info + offset);
-        selected_num[i] = nselected;
-printf("i=%d nselected=%d\n", i, nselected);
-        size_t idx;
+    OUTPUT_INDICES_TYPE box_info_offset = 0;
+
+    for (uint batch_idx = 0; batch_idx < NUM_BATCHES; ++batch_idx) {
+        const __global INPUT0_TYPE* boxes_ptr = boxes + batch_idx * NUM_BOXES * 4;
+        const __global INPUT0_TYPE* scores_ptr = scores + batch_idx * NUM_CLASSES * NUM_BOXES;
+
+        uint nselected = FUNC_CALL(multiclass_nms)(boxes_ptr, scores_ptr, batch_idx, box_info + box_info_offset);
+
+        selected_num[batch_idx] = nselected;
+        box_info_offset += nselected;
+
+//printf("i=%d nselected=%d\n", i, nselected);
+        uint idx;
         for (idx = 0; idx < nselected; ++idx) {
             const __global BoxInfo* info = box_info + idx;
-            selected_outputs[6 * idx + 0] = (INPUT0_TYPE)info->class_idx;
+            selected_outputs[6 * idx + 0] = (OUTPUT_TYPE)info->class_idx;
             selected_outputs[6 * idx + 1] = info->score;
             selected_outputs[6 * idx + 2] = info->xmin;
             selected_outputs[6 * idx + 3] = info->ymin;
@@ -320,7 +337,7 @@ printf("i=%d nselected=%d\n", i, nselected);
             selected_indices[idx] = info->batch_idx * NUM_BOXES + info->index;
         }
 
-        //filler
+        // tail
         for (; idx < MAX_OUTPUT_BOXES_PER_BATCH; ++idx) {
             const __global BoxInfo* info = box_info + idx;
             selected_outputs[6 * idx + 0] = -1;
@@ -359,18 +376,19 @@ printf("i=%d nselected=%d\n", i, nselected);
     //printf("Two 2 inputs\n");
 }
 
-#else  // HAS_ROISNUNM
+#else// HAS_ROISNUM
 
 #    define INPUT_INDICES_TYPE INPUT2_TYPE
 
-KERNEL(whats_your_name_again)
+KERNEL(multiclass_nms_ref)
 (const __global INPUT0_TYPE* boxes,
  const __global INPUT0_TYPE* scores,
  const __global INPUT_INDICES_TYPE* roisnum,
  __global OUTPUT_INDICES_TYPE* selected_indices,
  __global OUTPUT_INDICES_TYPE* selected_num,
  __global OUTPUT_TYPE* selected_outputs) {
-    printf("Three 3 inputs\n");
+
+#error 3 inputs is not supported at the moment
 }
 
 #endif  // HAS_ROISNUM
