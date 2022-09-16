@@ -23,7 +23,8 @@ layout multiclass_nms_inst::calc_output_layout(
     // FIXME opoluektov
     // TODO правильно рассчитать размеры, исходя из
 
-    const auto num_batches = node.has_roisnum() ? node.roisnum().get_output_layout().batch() : node.boxes().get_output_layout().batch();
+    // lexa: looks ok (for shared == true case (seems to be always true, since shared = scores_rank==3) from shape_infer() )
+    const auto num_batches = node.has_roisnum() ? node.roisnum().get_output_layout().batch() : node.scores().get_output_layout().batch();
     const auto num_classes = node.has_roisnum() ? node.boxes().get_output_layout().batch() : node.scores().get_output_layout().feature();
     const auto num_boxes = node.boxes().get_output_layout().feature();
 

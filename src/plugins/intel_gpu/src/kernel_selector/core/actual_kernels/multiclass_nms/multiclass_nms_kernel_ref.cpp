@@ -60,8 +60,8 @@ JitConstants MulticlassNmsKernelRef::GetJitConstants(const multiclass_nms_params
     JitConstants jit = MakeBaseParamsJitConstants(params);
 
     // FIXME opoluektov: hardcoding
-    const auto num_batches = params.has_roisnum ? params.inputs[2].Batch().v : params.inputs[0].Batch().v;
-    const auto num_classes = params.has_roisnum ? params.inputs[1].Batch().v : params.inputs[1].Feature().v;
+    const auto num_batches = params.has_roisnum ? params.inputs[2].Batch().v : params.inputs[1].Batch().v;
+    const auto num_classes = params.has_roisnum ? params.inputs[0].Batch().v : params.inputs[1].Feature().v;
     const auto num_boxes = params.inputs[0].Feature().v;
 
     int64_t max_output_boxes_per_class = 0;
