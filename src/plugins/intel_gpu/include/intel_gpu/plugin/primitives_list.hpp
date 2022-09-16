@@ -242,5 +242,8 @@ REGISTER_FACTORY(v9, ROIAlign);
 REGISTER_FACTORY(v9, RDFT);
 REGISTER_FACTORY(v9, IRDFT);
 
+// ------------------------------ Supported v9 ops ------------------------------ //
+REGISTER_FACTORY(v9, MulticlassNms);
+
 // --------------------------- Supported internal ops --------------------------- //
 REGISTER_FACTORY(internal, NonMaxSuppressionIEInternal);
