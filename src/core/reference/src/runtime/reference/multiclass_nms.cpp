@@ -379,9 +379,9 @@ static const std::vector<BoxInfo> multiclass_nms(const float* boxes_data,
             selected = nms(boxesPtr, scoresPtr, num_boxes, attrs, image_idx, class_idx);
         }
 /*
-        std::cout << "REF Post batch=?" << " class=" << class_idx << "detected=" << selected.size() << "\n";
+        std::cout << "REF Post nms batch=?" << " class=" << class_idx << "detected=" << selected.size() << "\n";
         for(const auto& s : selected) {
-            std::cout << "REF " << s.batch_index << " " << s.class_index << " " << s.index << s.score << "\n";
+            std::cout << "REF " << s.batch_index << " " << s.class_index << " " << s.index << " " << s.score << "\n";
         }
 */
 

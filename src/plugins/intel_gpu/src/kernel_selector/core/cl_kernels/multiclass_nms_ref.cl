@@ -62,11 +62,58 @@ inline void FUNC(swap_info)(__global BoxInfo* a, __global BoxInfo* b) {
     *b = temp;
 }
 
-inline int FUNC(partition)(__global BoxInfo* arr, int l, int h, bool sortByScore) {
+#define SORTMODE_CLASS 0
+#define SORTMODE_SCORE_THEN_INDEX 1
+#define SORTMODE_SCORE_THEN_CLASS 2
+
+inline int FUNC(partition)(__global BoxInfo* arr, int l, int h, int sortMode/*bool sortByScore*/) {
     const BoxInfo pivot = arr[h];
 
     int i = (l - 1);
     for (int j = l; j <= h - 1; j++) {
+        switch(sortMode) {
+            case SORTMODE_CLASS: {
+                if ((arr[j].class_idx < pivot.class_idx) ||
+                    (arr[j].class_idx == pivot.class_idx && arr[j].batch_idx < pivot.batch_idx) ||
+                    (arr[j].class_idx == pivot.class_idx && arr[j].batch_idx == pivot.batch_idx &&
+                     arr[j].score > pivot.score) ||
+                    (arr[j].class_idx == pivot.class_idx && arr[j].batch_idx == pivot.batch_idx &&
+                     arr[j].score == pivot.score && arr[j].index < pivot.index)) {
+                    i++;
+                    FUNC_CALL(swap_info)(&arr[i], &arr[j]);
+                }
+                break;
+            }
+            case SORTMODE_SCORE_THEN_INDEX: {
+                if ((arr[j].score > pivot.score) || (arr[j].score == pivot.score && arr[j].index < pivot.index) ||
+                    (arr[j].score == pivot.score && arr[j].index == pivot.index &&
+                     arr[j].class_idx > pivot.class_idx) ||
+                    (arr[j].score == pivot.score && arr[j].index == pivot.index &&
+                     arr[j].class_idx == pivot.class_idx && arr[j].batch_idx > pivot.batch_idx)) {
+                    i++;
+                    FUNC_CALL(swap_info)(&arr[i], &arr[j]);
+                }
+                break;
+            }
+            case SORTMODE_SCORE_THEN_CLASS: {
+                if ( (arr[j].batch_idx == pivot.batch_idx) &&
+                     ((arr[j].score > pivot.score) || (arr[j].score == pivot.score && arr[j].class_idx < pivot.class_idx) ||
+                     (arr[j].score == pivot.score && arr[j].class_idx == pivot.class_idx && arr[j].index < pivot.index))) {
+/*
+
+                if ((arr[j].score > pivot.score) || (arr[j].score == pivot.score && arr[j].class_idx < pivot.class_idx) ||
+                    (arr[j].score == pivot.score && arr[j].class_idx == pivot.class_idx &&
+                     arr[j].index > pivot.index) ||
+                    (arr[j].score == pivot.score && arr[j].class_idx == pivot.class_idx &&
+                     arr[j].index == pivot.index && arr[j].batch_idx > pivot.batch_idx)) {
+*/
+                    i++;
+                    FUNC_CALL(swap_info)(&arr[i], &arr[j]);
+                }
+                break;
+            }
+        } // switch
+/*
         if (sortByScore) {
             if ((arr[j].score > pivot.score) || (arr[j].score == pivot.score && arr[j].index < pivot.index) ||
                 (arr[j].score == pivot.score && arr[j].index == pivot.index &&
@@ -87,15 +134,61 @@ inline int FUNC(partition)(__global BoxInfo* arr, int l, int h, bool sortByScore
                 FUNC_CALL(swap_info)(&arr[i], &arr[j]);
             }
         }
+*/
     }
     FUNC_CALL(swap_info)(&arr[i + 1], &arr[h]);
     return (i + 1);
 }
 
-inline void FUNC(bubbleSortIterative)(__global BoxInfo* arr, int l, int h, bool sortByScore) {
+inline void FUNC(bubbleSortIterative)(__global BoxInfo* arr, int l, int h, int sortMode/*bool sortByScore*/) {
     for (int i = 0; i < h - l; i++) {
         bool swapped = false;
         for (int j = l; j < h - i; j++) {
+        switch(sortMode) {
+            case SORTMODE_CLASS: {
+                if ((arr[j].class_idx < arr[j + 1].class_idx) ||
+                    (arr[j].class_idx == arr[j + 1].class_idx && arr[j].batch_idx < arr[j + 1].batch_idx) ||
+                    (arr[j].class_idx == arr[j + 1].class_idx && arr[j].batch_idx == arr[j + 1].batch_idx &&
+                     arr[j].score > arr[j + 1].score) ||
+                    (arr[j].class_idx == arr[j + 1].class_idx && arr[j].batch_idx == arr[j + 1].batch_idx &&
+                     arr[j].score == arr[j + 1].score && arr[j].index < arr[j + 1].index)) {
+                    FUNC_CALL(swap_info)(&arr[j], &arr[j + 1]);
+                    swapped = true;
+                }
+                break;
+            }
+            case SORTMODE_SCORE_THEN_INDEX: {
+                if ((arr[j].score > arr[j + 1].score) ||
+                    (arr[j].score == arr[j + 1].score && arr[j].index < arr[j + 1].index) ||
+                    (arr[j].score == arr[j + 1].score && arr[j].index == arr[j + 1].index &&
+                     arr[j].class_idx < arr[j + 1].class_idx) ||
+                    (arr[j].score == arr[j + 1].score && arr[j].index == arr[j + 1].index &&
+                     arr[j].class_idx == arr[j + 1].class_idx && arr[j].batch_idx < arr[j + 1].batch_idx)) {
+                    FUNC_CALL(swap_info)(&arr[j], &arr[j + 1]);
+                    swapped = true;
+                }
+                break;
+            }
+            case SORTMODE_SCORE_THEN_CLASS: {
+                if ( (arr[j].batch_idx == arr[j + 1].batch_idx) &&
+                     ((arr[j].score > arr[j + 1].score) || (arr[j].score == arr[j + 1].score && arr[j].class_idx < arr[j + 1].class_idx) ||
+                     (arr[j].score == arr[j + 1].score && arr[j].class_idx == arr[j + 1].class_idx && arr[j].index < arr[j + 1].index))) {
+/*
+                if ((arr[j].score > arr[j + 1].score) ||
+                    (arr[j].score == arr[j + 1].score && arr[j].class_idx < arr[j + 1].class_idx) ||
+                    (arr[j].score == arr[j + 1].score && arr[j].class_idx == arr[j + 1].class_idx &&
+                     arr[j].index < arr[j + 1].index) ||
+                    (arr[j].score == arr[j + 1].score && arr[j].class_idx == arr[j + 1].class_idx &&
+                     arr[j].index == arr[j + 1].index && arr[j].batch_idx < arr[j + 1].batch_idx)) {
+*/
+                    FUNC_CALL(swap_info)(&arr[j], &arr[j + 1]);
+                    swapped = true;
+                }
+                break;
+            }
+        } // switch
+
+/*
             if (sortByScore) {
                 if ((arr[j].score > arr[j + 1].score) ||
                     (arr[j].score == arr[j + 1].score && arr[j].index < arr[j + 1].index) ||
@@ -117,6 +210,8 @@ inline void FUNC(bubbleSortIterative)(__global BoxInfo* arr, int l, int h, bool 
                     swapped = true;
                 }
             }
+*/
+
         }
 
         if (!swapped)
@@ -124,7 +219,7 @@ inline void FUNC(bubbleSortIterative)(__global BoxInfo* arr, int l, int h, bool 
     }
 }
 
-inline void FUNC(quickSortIterative)(__global BoxInfo* arr, int l, int h, bool sortByScore) {
+inline void FUNC(quickSortIterative)(__global BoxInfo* arr, int l, int h, int sortMode/*bool sortByScore*/) {
     // Create an auxiliary stack
     const int kStackSize = 100;
     int stack[kStackSize];
@@ -144,13 +239,13 @@ inline void FUNC(quickSortIterative)(__global BoxInfo* arr, int l, int h, bool s
 
         // Set pivot element at its correct position
         // in sorted array
-        int p = FUNC_CALL(partition)(arr, l, h, sortByScore);
+        int p = FUNC_CALL(partition)(arr, l, h, sortMode/*sortByScore*/);
 
         // If there are elements on left side of pivot,
         // then push left side to stack
         if (p - 1 > l) {
             if (top >= (kStackSize - 1)) {
-                FUNC_CALL(bubbleSortIterative)(arr, l, p - 1, sortByScore);
+                FUNC_CALL(bubbleSortIterative)(arr, l, p - 1, sortMode/*sortByScore*/);
             } else {
                 stack[++top] = l;
                 stack[++top] = p - 1;
@@ -161,7 +256,7 @@ inline void FUNC(quickSortIterative)(__global BoxInfo* arr, int l, int h, bool s
         // then push right side to stack
         if (p + 1 < h) {
             if (top >= (kStackSize - 1)) {
-                FUNC_CALL(bubbleSortIterative)(arr, p + 1, h, sortByScore);
+                FUNC_CALL(bubbleSortIterative)(arr, p + 1, h, sortMode/*sortByScore*/);
             } else {
                 stack[++top] = p + 1;
                 stack[++top] = h;
@@ -225,7 +320,7 @@ inline OUTPUT_INDICES_TYPE FUNC(nms)(const __global INPUT0_TYPE* boxes,
 */
 
     // sort by score in current class - must be higher score/lower index first (std::greater<BoxInfo> in ref impl.)
-    FUNC_CALL(quickSortIterative)(box_info, 0, candidates_num - 1, true);
+    FUNC_CALL(quickSortIterative)(box_info, 0, candidates_num - 1, SORTMODE_SCORE_THEN_INDEX);
 
     // threshold nms_top_k for each class
     if (NMS_TOP_K > -1 && NMS_TOP_K < candidates_num) {
@@ -293,6 +388,7 @@ inline OUTPUT_INDICES_TYPE FUNC(multiclass_nms)(const __global INPUT0_TYPE* boxe
             continue;
 
         uint detected = FUNC_CALL(nms)(boxes, scores + class_idx * NUM_BOXES, batch_idx, class_idx, box_info + detection_count);
+
 /*
         printf("OCL Post nms batch=%d class=%d detected=%d\n", batch_idx, class_idx, detected);
         for(uint i=0; i<detected; ++i) {
@@ -300,10 +396,11 @@ inline OUTPUT_INDICES_TYPE FUNC(multiclass_nms)(const __global INPUT0_TYPE* boxe
             printf("OCL %d %d %d %f\n", box->batch_idx, box->class_idx, box->index, box->score);
         }
 */
+
         detection_count += detected;
     }
 
-    FUNC_CALL(quickSortIterative)(box_info, 0, detection_count - 1, true);
+    FUNC_CALL(quickSortIterative)(box_info, 0, detection_count - 1, SORTMODE_SCORE_THEN_CLASS);
 
 /*
     printf("OCL Post nms sort batch=%d \n", batch_idx);
@@ -326,7 +423,7 @@ inline OUTPUT_INDICES_TYPE FUNC(multiclass_nms)(const __global INPUT0_TYPE* boxe
 #if !(SORT_RESULT_ACROSS_BATCH) && (SORT_RESULT_TYPE == SORT_RESULT_CLASSID)
     //printf("Oops\n");
     // lexa: still under question
-    FUNC_CALL(quickSortIterative)(box_info, 0, detection_count - 1, false);
+    FUNC_CALL(quickSortIterative)(box_info, 0, detection_count - 1, SORTMODE_CLASS);
 #endif
 
     //printf("batch_idx %d detection count: %d\n", (int)batch_idx, (int)detection_count);
