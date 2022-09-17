@@ -264,11 +264,33 @@ static const std::vector<BoxInfo> nms(const float* boxes_data,
         return selected;       // empty
     }
 
+/*
+    std::cout << "REF Before sort\n";
+    for(const auto& candidate : std::vector<BoxInfo>{candidate_boxes.begin(), candidate_boxes.begin() + candiate_size}) {
+        std::cout << "REF score " << candidate.score
+                  << " class_idx " << candidate.class_index
+                  << " batch_idx " << candidate.batch_index
+                  << " index " << candidate.index
+                  << std::endl;
+    }
+*/
+
     // sort by score in current class
     std::partial_sort(candidate_boxes.begin(),
                       candidate_boxes.begin() + candiate_size,
                       candidate_boxes.end(),
                       std::greater<BoxInfo>());
+
+/*
+    std::cout << "REF after partial_sort\n";
+    for(const auto& candidate : std::vector<BoxInfo>{candidate_boxes.begin(), candidate_boxes.begin() + candiate_size}) {
+        std::cout << "REF score " << candidate.score
+                  << " class_idx " << candidate.class_index
+                  << " batch_idx " << candidate.batch_index
+                  << " index " << candidate.index
+                  << std::endl;
+    }
+*/
 
     std::priority_queue<BoxInfo> sorted_boxes(candidate_boxes.begin(),
                                               candidate_boxes.begin() + candiate_size,
@@ -282,6 +304,14 @@ static const std::vector<BoxInfo> nms(const float* boxes_data,
         next_candidate = sorted_boxes.top();
         original_score = next_candidate.score;
         sorted_boxes.pop();
+
+/*
+        std::cout << "REF score " << next_candidate.score
+                  << " class_idx "  << next_candidate.class_index
+                  << " batch_idx "  << next_candidate.batch_index
+                  << " index "  << next_candidate.index
+                  << std::endl;
+*/
 
         bool should_hard_suppress = false;
         for (int64_t j = static_cast<int64_t>(selected.size()) - 1; j >= next_candidate.suppress_begin_index; --j) {

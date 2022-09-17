@@ -68,11 +68,11 @@ inline int FUNC(partition)(__global BoxInfo* arr, int l, int h, bool sortByScore
     int i = (l - 1);
     for (int j = l; j <= h - 1; j++) {
         if (sortByScore) {
-            if ((arr[j].score > pivot.score) || (arr[j].score == pivot.score && arr[j].batch_idx < pivot.batch_idx) ||
-                (arr[j].score == pivot.score && arr[j].batch_idx == pivot.batch_idx &&
-                 arr[j].class_idx < pivot.class_idx) ||
-                (arr[j].score == pivot.score && arr[j].batch_idx == pivot.batch_idx &&
-                 arr[j].class_idx == pivot.class_idx && arr[j].index < pivot.index)) {
+            if ((arr[j].score > pivot.score) || (arr[j].score == pivot.score && arr[j].index < pivot.index) ||
+                (arr[j].score == pivot.score && arr[j].index == pivot.index &&
+                 arr[j].class_idx > pivot.class_idx) ||
+                (arr[j].score == pivot.score && arr[j].index == pivot.index &&
+                 arr[j].class_idx == pivot.class_idx && arr[j].batch_idx > pivot.batch_idx)) {
                 i++;
                 FUNC_CALL(swap_info)(&arr[i], &arr[j]);
             }
@@ -98,11 +98,11 @@ inline void FUNC(bubbleSortIterative)(__global BoxInfo* arr, int l, int h, bool 
         for (int j = l; j < h - i; j++) {
             if (sortByScore) {
                 if ((arr[j].score > arr[j + 1].score) ||
-                    (arr[j].score == arr[j + 1].score && arr[j].batch_idx < arr[j + 1].batch_idx) ||
-                    (arr[j].score == arr[j + 1].score && arr[j].batch_idx == arr[j + 1].batch_idx &&
+                    (arr[j].score == arr[j + 1].score && arr[j].index < arr[j + 1].index) ||
+                    (arr[j].score == arr[j + 1].score && arr[j].index == arr[j + 1].index &&
                      arr[j].class_idx < arr[j + 1].class_idx) ||
-                    (arr[j].score == arr[j + 1].score && arr[j].batch_idx == arr[j + 1].batch_idx &&
-                     arr[j].class_idx == arr[j + 1].class_idx && arr[j].index < arr[j + 1].index)) {
+                    (arr[j].score == arr[j + 1].score && arr[j].index == arr[j + 1].index &&
+                     arr[j].class_idx == arr[j + 1].class_idx && arr[j].batch_idx < arr[j + 1].batch_idx)) {
                     FUNC_CALL(swap_info)(&arr[j], &arr[j + 1]);
                     swapped = true;
                 }
@@ -216,6 +216,17 @@ inline OUTPUT_INDICES_TYPE FUNC(nms)(const __global INPUT0_TYPE* boxes,
         ++candidates_num;
     }
 
+/*
+    printf("OCL Before sort\n");
+    for (size_t i = 0; i < candidates_num; ++i) {
+        __global BoxInfo* next_candidate = box_info + i;
+        printf("OCL  score %f class_idx %d batch_idx %d index %d\n", next_candidate->score, next_candidate->class_idx, next_candidate->batch_idx, next_candidate->index);
+    }
+*/
+
+    // sort by score in current class - must be higher score/lower index first (std::greater<BoxInfo> in ref impl.)
+    FUNC_CALL(quickSortIterative)(box_info, 0, candidates_num - 1, true);
+
     // threshold nms_top_k for each class
     if (NMS_TOP_K > -1 && NMS_TOP_K < candidates_num) {
         candidates_num = NMS_TOP_K;
@@ -225,9 +236,13 @@ inline OUTPUT_INDICES_TYPE FUNC(nms)(const __global INPUT0_TYPE* boxes,
         return candidates_num;  // empty
     }
 
-    // sort by score in current class - must be higher score/lower index first (std::greater<BoxInfo> in ref impl.)
-    FUNC_CALL(quickSortIterative)(box_info, 0, candidates_num - 1, true);
-
+/*
+    printf("OCL After sort\n");
+    for (size_t i = 0; i < candidates_num; ++i) {
+        __global BoxInfo* next_candidate = box_info + i;
+        printf("OCL  score %f class_idx %d batch_idx %d index %d\n", next_candidate->score, next_candidate->class_idx, next_candidate->batch_idx, next_candidate->index);
+    }
+*/
     /* here should be priority_queue. Maybe quickSortIterative(..., true) do the same, but this should be checked
     std::priority_queue<BoxInfo> sorted_boxes(candidate_boxes.begin(),
                                               candidate_boxes.begin() + candiate_size,
@@ -236,13 +251,15 @@ inline OUTPUT_INDICES_TYPE FUNC(nms)(const __global INPUT0_TYPE* boxes,
 
 
     INPUT0_TYPE adaptive_threshold = IOU_THRESHOLD;
-
+/*
+    printf("OCL after sort\n");
+*/
     size_t selected_size = 0;
     for (size_t i = 0; i < candidates_num; ++i) {
         __global BoxInfo* next_candidate = box_info + i;
 
 //        printf("next_candidate.box: %f %f %f %f\n", next_candidate->xmin, next_candidate->ymin, next_candidate->xmax, next_candidate->ymax);
-//        printf("  score %f class_idx %d batch_idx %d index %d\n", next_candidate->score, next_candidate->class_idx, next_candidate->batch_idx, next_candidate->index);
+//        printf("OCL  score %f class_idx %d batch_idx %d index %d\n", next_candidate->score, next_candidate->class_idx, next_candidate->batch_idx, next_candidate->index);
         bool should_hard_suppress = false;
 
         if (NMS_ETA < 1 && adaptive_threshold > 0.5) // FIXME: macro for half
