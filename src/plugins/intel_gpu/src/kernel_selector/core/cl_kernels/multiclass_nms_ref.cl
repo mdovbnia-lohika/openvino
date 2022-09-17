@@ -243,13 +243,6 @@ inline OUTPUT_INDICES_TYPE FUNC(nms)(const __global INPUT0_TYPE* boxes,
         printf("OCL  score %f class_idx %d batch_idx %d index %d\n", next_candidate->score, next_candidate->class_idx, next_candidate->batch_idx, next_candidate->index);
     }
 */
-    /* here should be priority_queue. Maybe quickSortIterative(..., true) do the same, but this should be checked
-    std::priority_queue<BoxInfo> sorted_boxes(candidate_boxes.begin(),
-                                              candidate_boxes.begin() + candiate_size,
-                                              std::less<BoxInfo>());
-    */
-
-
     INPUT0_TYPE adaptive_threshold = IOU_THRESHOLD;
 /*
     printf("OCL after sort\n");
@@ -299,9 +292,15 @@ inline OUTPUT_INDICES_TYPE FUNC(multiclass_nms)(const __global INPUT0_TYPE* boxe
         if (class_idx == BACKGROUND_CLASS)
             continue;
 
-        detection_count +=
-            FUNC_CALL(nms)(boxes, scores + class_idx * NUM_BOXES, batch_idx, class_idx, box_info + detection_count);
-        //printf("again dc %d\n", (int)detection_count);
+        uint detected = FUNC_CALL(nms)(boxes, scores + class_idx * NUM_BOXES, batch_idx, class_idx, box_info + detection_count);
+/*
+        printf("OCL Post nms batch=%d class=%d detected=%d\n", batch_idx, class_idx, detected);
+        for(uint i=0; i<detected; ++i) {
+            __global const BoxInfo* box = box_info + detection_count + i;
+            printf("OCL %d %d %d %f\n", box->batch_idx, box->class_idx, box->index, box->score);
+        }
+*/
+        detection_count += detected;
     }
 
     FUNC_CALL(quickSortIterative)(box_info, 0, detection_count - 1, true);
