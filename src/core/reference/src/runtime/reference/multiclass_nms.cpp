@@ -398,6 +398,13 @@ static const std::vector<BoxInfo> multiclass_nms(const float* boxes_data,
                  ((std::fabs(l.score - r.score) < 1e-6) && l.class_index == r.class_index && l.index < r.index)));
     });
 
+/*
+    std::cout << "REF post nms sort \n";
+    for(const auto& s : selected_boxes) {
+        std::cout << "REF " << s.batch_index << " " << s.class_index << " " << s.index << " " << s.score << "\n";
+    }
+*/
+
     // threshold keep_top_k for each batch element
     if (attrs.keep_top_k > -1 && attrs.keep_top_k < num_dets) {
         num_dets = attrs.keep_top_k;
@@ -496,6 +503,7 @@ void multiclass_nms(const float* boxes_data,
             const Shape scores_sp = {1, num_classes, num_boxes};
 
             selected_boxes = multiclass_nms(boxesPtr, boxes_sp, scoresPtr, scores_sp, attrs, i, shared);
+            //std::cout << "REF batch_idx=" << i << " nselected=" << selected_boxes.size() << "\n";
         } else {
             if (roisnum_data[i] <= 0) {
                 *valid_outputs++ = 0;

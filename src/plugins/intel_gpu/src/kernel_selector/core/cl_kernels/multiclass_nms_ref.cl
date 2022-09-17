@@ -305,11 +305,27 @@ inline OUTPUT_INDICES_TYPE FUNC(multiclass_nms)(const __global INPUT0_TYPE* boxe
 
     FUNC_CALL(quickSortIterative)(box_info, 0, detection_count - 1, true);
 
+/*
+    printf("OCL Post nms sort batch=%d \n", batch_idx);
+    for(uint i=0; i<detection_count; ++i) {
+        __global const BoxInfo* box = box_info + i;
+        printf("OCL %d %d %d %f\n", box->batch_idx, box->class_idx, box->index, box->score);
+    }
+*/
+
+/*
     if (KEEP_TOP_K > -1)
         detection_count = min(detection_count, KEEP_TOP_K);
+*/
+
+    if (KEEP_TOP_K > -1 && KEEP_TOP_K < detection_count) {
+        detection_count = KEEP_TOP_K;
+    }
+
 
 #if !(SORT_RESULT_ACROSS_BATCH) && (SORT_RESULT_TYPE == SORT_RESULT_CLASSID)
     //printf("Oops\n");
+    // lexa: still under question
     FUNC_CALL(quickSortIterative)(box_info, 0, detection_count - 1, false);
 #endif
 
@@ -339,7 +355,8 @@ KERNEL(multiclass_nms_ref)(
         selected_num[batch_idx] = nselected;
         box_info_offset += nselected;
 
-//printf("i=%d nselected=%d\n", i, nselected);
+        //printf("OCL batch_idx=%d nselected=%d\n", batch_idx, nselected);
+
         uint idx;
         for (idx = 0; idx < nselected; ++idx) {
             const __global BoxInfo* info = box_info + idx;
