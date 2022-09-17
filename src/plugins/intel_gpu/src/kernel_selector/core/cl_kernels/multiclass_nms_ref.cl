@@ -353,38 +353,37 @@ KERNEL(multiclass_nms_ref)(
         uint nselected = FUNC_CALL(multiclass_nms)(boxes_ptr, scores_ptr, batch_idx, box_info + box_info_offset);
 
         selected_num[batch_idx] = nselected;
-        box_info_offset += nselected;
 
-        //printf("OCL batch_idx=%d nselected=%d\n", batch_idx, nselected);
-
+        __global OUTPUT_TYPE* selected_outputs_ptr = selected_outputs + batch_idx * MAX_OUTPUT_BOXES_PER_BATCH * 6;
+        __global OUTPUT_INDICES_TYPE* selected_indices_ptr = selected_indices + batch_idx * MAX_OUTPUT_BOXES_PER_BATCH;
         uint idx;
         for (idx = 0; idx < nselected; ++idx) {
-            const __global BoxInfo* info = box_info + idx;
-            selected_outputs[6 * idx + 0] = (OUTPUT_TYPE)info->class_idx;
-            selected_outputs[6 * idx + 1] = info->score;
-            selected_outputs[6 * idx + 2] = info->xmin;
-            selected_outputs[6 * idx + 3] = info->ymin;
-            selected_outputs[6 * idx + 4] = info->xmax;
-            selected_outputs[6 * idx + 5] = info->ymax;
+            const __global BoxInfo* info = box_info + box_info_offset + idx;
+            selected_outputs_ptr[6 * idx + 0] = (OUTPUT_TYPE)info->class_idx;
+            selected_outputs_ptr[6 * idx + 1] = info->score;
+            selected_outputs_ptr[6 * idx + 2] = info->xmin;
+            selected_outputs_ptr[6 * idx + 3] = info->ymin;
+            selected_outputs_ptr[6 * idx + 4] = info->xmax;
+            selected_outputs_ptr[6 * idx + 5] = info->ymax;
 
-            selected_indices[idx] = info->batch_idx * NUM_BOXES + info->index;
+            selected_indices_ptr[idx] = info->batch_idx * NUM_BOXES + info->index;
         }
 
         // tail
         for (; idx < MAX_OUTPUT_BOXES_PER_BATCH; ++idx) {
-            const __global BoxInfo* info = box_info + idx;
-            selected_outputs[6 * idx + 0] = -1;
-            selected_outputs[6 * idx + 1] = -1;
-            selected_outputs[6 * idx + 2] = -1;
-            selected_outputs[6 * idx + 3] = -1;
-            selected_outputs[6 * idx + 4] = -1;
-            selected_outputs[6 * idx + 5] = -1;
+            selected_outputs_ptr[6 * idx + 0] = -1;
+            selected_outputs_ptr[6 * idx + 1] = -1;
+            selected_outputs_ptr[6 * idx + 2] = -1;
+            selected_outputs_ptr[6 * idx + 3] = -1;
+            selected_outputs_ptr[6 * idx + 4] = -1;
+            selected_outputs_ptr[6 * idx + 5] = -1;
 
-            //selected_indices[idx] = -1;
+            selected_indices_ptr[idx] = -1;
         }
 
+        box_info_offset += nselected;
 
-    }
+    }// for - batch_idx
 
 /*
 
