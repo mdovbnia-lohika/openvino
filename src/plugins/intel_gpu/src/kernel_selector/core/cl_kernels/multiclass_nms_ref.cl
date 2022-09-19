@@ -326,26 +326,23 @@ inline OUTPUT_INDICES_TYPE FUNC(multiclass_nms)(const __global INPUT0_TYPE* boxe
 
         uint detected = FUNC_CALL(nms)(boxes, scores + class_idx * NUM_BOXES, batch_idx, class_idx, box_info + detection_count);
 
-/*
         printf("OCL Post nms batch=%d class=%d detected=%d\n", batch_idx, class_idx, detected);
         for(uint i=0; i<detected; ++i) {
             __global const BoxInfo* box = box_info + detection_count + i;
             printf("OCL %d %d %d %f\n", box->batch_idx, box->class_idx, box->index, box->score);
         }
-*/
 
         detection_count += detected;
     }
 
     FUNC_CALL(quickSortIterative)(box_info, 0, detection_count - 1, SORTMODE_SCORE_THEN_CLASS);
-/*
+
 printf("**********\n");
     printf("OCL Post nms sort batch=%d \n", batch_idx);
     for(uint i=0; i<detection_count; ++i) {
         __global const BoxInfo* box = box_info + i;
         printf("OCL %d %d %d %f\n", box->batch_idx, box->class_idx, box->index, box->score);
     }
-*/
 
 /*
     if (KEEP_TOP_K > -1)
