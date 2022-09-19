@@ -47,8 +47,13 @@ JitConstants MulticlassNmsKernelRef::GetJitConstants(const multiclass_nms_params
 
     // FIXME opoluektov: hardcoding
     const auto num_batches = params.has_roisnum ? params.inputs[2].Batch().v : params.inputs[1].Batch().v;
-    const auto num_classes = params.has_roisnum ? params.inputs[0].Batch().v : params.inputs[1].Feature().v;
+    int64_t num_classes = params.has_roisnum ? params.inputs[0].Batch().v : params.inputs[1].Feature().v;
     const auto num_boxes = params.inputs[0].Feature().v;
+
+    // see shape_infer() call in MulticlassNmsIEInternal::validate_and_infer_types() - ignore_bg_class == true
+    if (params.background_class >= 0 && params.background_class < num_classes) {
+        num_classes = std::max(1l, num_classes - 1);
+    }
 
     int64_t max_output_boxes_per_class = 0;
     if (params.nms_top_k >= 0)
