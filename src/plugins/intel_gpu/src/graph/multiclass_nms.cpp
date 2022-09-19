@@ -29,9 +29,11 @@ layout multiclass_nms_inst::calc_output_layout(
     const auto num_boxes = node.boxes().get_output_layout().feature();
 
     // see shape_infer() call in MulticlassNmsIEInternal::validate_and_infer_types() - ignore_bg_class == true
+/*
     if (desc->background_class >= 0 && desc->background_class < num_classes) {
         num_classes = std::max(1, num_classes - 1);
     }
+*/
 
     int max_output_boxes_per_class = 0;
     if (desc->nms_top_k >= 0)

@@ -51,9 +51,11 @@ JitConstants MulticlassNmsKernelRef::GetJitConstants(const multiclass_nms_params
     const auto num_boxes = params.inputs[0].Feature().v;
 
     // see shape_infer() call in MulticlassNmsIEInternal::validate_and_infer_types() - ignore_bg_class == true
+/*
     if (params.background_class >= 0 && params.background_class < num_classes) {
         num_classes = std::max(1l, num_classes - 1);
     }
+*/
 
     int64_t max_output_boxes_per_class = 0;
     if (params.nms_top_k >= 0)
