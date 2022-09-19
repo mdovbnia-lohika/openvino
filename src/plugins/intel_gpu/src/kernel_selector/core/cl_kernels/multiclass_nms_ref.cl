@@ -63,8 +63,9 @@ inline void FUNC(swap_info)(__global BoxInfo* a, __global BoxInfo* b) {
 }
 
 #define SORTMODE_CLASS 0
-#define SORTMODE_SCORE_THEN_INDEX 1
-#define SORTMODE_SCORE_THEN_CLASS 2
+#define SORTMODE_SCORE 1
+#define SORTMODE_SCORE_THEN_INDEX 2
+#define SORTMODE_SCORE_THEN_CLASS 3
 
 inline int FUNC(partition)(__global BoxInfo* arr, int l, int h, int sortMode) {
     const BoxInfo pivot = arr[h];
@@ -79,6 +80,18 @@ inline int FUNC(partition)(__global BoxInfo* arr, int l, int h, int sortMode) {
                      arr[j].score > pivot.score) ||
                     (arr[j].class_idx == pivot.class_idx && arr[j].batch_idx == pivot.batch_idx &&
                      arr[j].score == pivot.score && arr[j].index < pivot.index)) {
+                    i++;
+                    FUNC_CALL(swap_info)(&arr[i], &arr[j]);
+                }
+                break;
+            }
+            case SORTMODE_SCORE: {
+                if ((arr[j].score > pivot.score) ||
+                    (arr[j].score == pivot.score && arr[j].batch_idx < pivot.batch_idx) ||
+                    (arr[j].score == pivot.score && arr[j].batch_idx == pivot.batch_idx &&
+                     arr[j].class_idx < pivot.class_idx) ||
+                    (arr[j].score == pivot.score && arr[j].batch_idx == pivot.batch_idx &&
+                     arr[j].class_idx == pivot.class_idx && arr[j].index < pivot.index)) {
                     i++;
                     FUNC_CALL(swap_info)(&arr[i], &arr[j]);
                 }
@@ -122,6 +135,18 @@ inline void FUNC(bubbleSortIterative)(__global BoxInfo* arr, int l, int h, int s
                          arr[j].score > arr[j + 1].score) ||
                         (arr[j].class_idx == arr[j + 1].class_idx && arr[j].batch_idx == arr[j + 1].batch_idx &&
                          arr[j].score == arr[j + 1].score && arr[j].index < arr[j + 1].index)) {
+                        FUNC_CALL(swap_info)(&arr[j], &arr[j + 1]);
+                        swapped = true;
+                    }
+                    break;
+                }
+                case SORTMODE_SCORE: {
+                    if ((arr[j].score > arr[j + 1].score) ||
+                        (arr[j].score == arr[j + 1].score && arr[j].batch_idx < arr[j + 1].batch_idx) ||
+                        (arr[j].score == arr[j + 1].score && arr[j].batch_idx == arr[j + 1].batch_idx &&
+                         arr[j].class_idx < arr[j + 1].class_idx) ||
+                        (arr[j].score == arr[j + 1].score && arr[j].batch_idx == arr[j + 1].batch_idx &&
+                         arr[j].class_idx == arr[j + 1].class_idx && arr[j].index < arr[j + 1].index)) {
                         FUNC_CALL(swap_info)(&arr[j], &arr[j + 1]);
                         swapped = true;
                     }
@@ -425,26 +450,20 @@ KERNEL(multiclass_nms_ref)(
     }// for - batch_idx
 
 /*
-
     offset += selected_num[NUM_BATCHES - 1];
+*/
+#if SORT_RESULT_ACROSS_BATCH
+    #if SORT_RESULT_TYPE == SORT_RESULT_SCORE
+        FUNC_CALL(quickSortIterative)(box_info, 0, box_info_offset - 1, SORTMODE_SCORE);
+    #elif SORT_RESULT_TYPE == SORT_RESULT_CLASSID
+        FUNC_CALL(quickSortIterative)(box_info, 0, box_info_offset - 1, SORTMODE_CLASS);
+    #endif
+#endif  // SORT_RESULT_ACROSS_BATCH
 
-#    if SORT_RESULT_ACROSS_BATCH
-    //printf(">>> sort across batch!!!\n");
-#        if SORT_RESULT_TYPE == SORT_RESULT_SCORE
-    //printf(">>> sort across batch, by score\n");
-    FUNC_CALL(quickSortIterative)(box_info, 0, offset - 1, true);
-#        elif SORT_RESULT_TYPE == SORT_RESULT_CLASSID
-    //printf(">>> sort across batch, by class\n");
-    FUNC_CALL(quickSortIterative)(box_info, 0, offset - 1, false);
-#        endif
-#    endif  // SORT_RESULT_ACROSS_BATCH
-
+/*
     //size_t output_size = min(selected_num[NUM_BATCHES - 1], OUTPUT_DIM);
 //    size_t output_size = offset;
-
 */
-
-    //printf("Two 2 inputs\n");
 }
 
 #else// HAS_ROISNUM
