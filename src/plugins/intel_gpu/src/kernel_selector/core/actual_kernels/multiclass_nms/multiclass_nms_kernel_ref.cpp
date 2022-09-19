@@ -108,7 +108,7 @@ void MulticlassNmsKernelRef::PrepareKernelCommon(const multiclass_nms_params& pa
                                                  clKernelData& kernel) const {
     DispatchData dispatch_data;
     dispatch_data.gws = std::move(gws);
-    dispatch_data.lws = GetOptimalLocalWorkGroupSizes(dispatch_data.gws, params.engineInfo);
+    dispatch_data.lws = {1, 1, 1}; /*GetOptimalLocalWorkGroupSizes(dispatch_data.gws, params.engineInfo);*/
 
     const auto entry_point = GetEntryPoint(kernelName, params.layerID, params, options, stage_index);
     auto cldnn_jit = GetJitConstants(params);

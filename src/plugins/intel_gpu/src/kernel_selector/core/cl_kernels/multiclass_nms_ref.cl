@@ -256,6 +256,10 @@ inline OUTPUT_INDICES_TYPE FUNC(nms)(const __global INPUT0_TYPE* boxes,
     }
 */
 
+    if (candidates_num == 0) {
+        return candidates_num;
+    }
+
     // sort by score in current class - must be higher score/lower index first (std::greater<BoxInfo> in ref impl.)
     FUNC_CALL(quickSortIterative)(box_info, 0, candidates_num - 1, SORTMODE_SCORE_THEN_INDEX);
 
@@ -326,23 +330,27 @@ inline OUTPUT_INDICES_TYPE FUNC(multiclass_nms)(const __global INPUT0_TYPE* boxe
 
         uint detected = FUNC_CALL(nms)(boxes, scores + class_idx * NUM_BOXES, batch_idx, class_idx, box_info + detection_count);
 
-        printf("OCL Post nms batch=%d class=%d detected=%d\n", batch_idx, class_idx, detected);
+/*
+        printf("OCL Post nms batch=%d class=%d detected=%d detection_count=%d\n", batch_idx, class_idx, detected, detection_count);
         for(uint i=0; i<detected; ++i) {
             __global const BoxInfo* box = box_info + detection_count + i;
             printf("OCL %d %d %d %f\n", box->batch_idx, box->class_idx, box->index, box->score);
         }
+*/
 
         detection_count += detected;
     }
 
     FUNC_CALL(quickSortIterative)(box_info, 0, detection_count - 1, SORTMODE_SCORE_THEN_CLASS);
 
-printf("**********\n");
+/*
+printf("********** detection_count=%d\n", detection_count);
     printf("OCL Post nms sort batch=%d \n", batch_idx);
     for(uint i=0; i<detection_count; ++i) {
         __global const BoxInfo* box = box_info + i;
         printf("OCL %d %d %d %f\n", box->batch_idx, box->class_idx, box->index, box->score);
     }
+*/
 
 /*
     if (KEEP_TOP_K > -1)
