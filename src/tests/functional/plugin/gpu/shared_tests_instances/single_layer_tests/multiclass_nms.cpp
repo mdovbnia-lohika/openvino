@@ -37,7 +37,7 @@ const std::vector<ov::op::util::MulticlassNmsBase::SortResultType> sortResultTyp
     ov::op::util::MulticlassNmsBase::SortResultType::SCORE,
     ov::op::util::MulticlassNmsBase::SortResultType::CLASSID,
     ov::op::util::MulticlassNmsBase::SortResultType::NONE};
-const std::vector<bool> sortResDesc = {/*true, */false};
+const std::vector<bool> sortResDesc = {true, false};
 const std::vector<float> nmsEta = {0.6f, 1.0f};
 const std::vector<bool> normalized = {true, false};
 
