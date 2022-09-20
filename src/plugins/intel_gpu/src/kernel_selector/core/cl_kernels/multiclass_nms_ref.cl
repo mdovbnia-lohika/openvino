@@ -6,7 +6,7 @@
 
 #define INPUT_INDICES_TYPE int32
 
-#ifndef HAS_ROISNUM
+//#ifndef HAS_ROISNUM
 
 // KERNEL(whats_your_name_again)
 //(const __global INPUT0_TYPE* boxes,
@@ -345,6 +345,7 @@ inline OUTPUT_INDICES_TYPE FUNC(nms)(const __global INPUT0_TYPE* boxes,
 
 inline OUTPUT_INDICES_TYPE FUNC(multiclass_nms)(const __global INPUT0_TYPE* boxes,
                                                 const __global INPUT0_TYPE* scores,
+                                                const uint num_boxes,
                                                 OUTPUT_INDICES_TYPE batch_idx,
                                                 __global BoxInfo* box_info) {
     OUTPUT_INDICES_TYPE detection_count = 0;
@@ -353,8 +354,14 @@ inline OUTPUT_INDICES_TYPE FUNC(multiclass_nms)(const __global INPUT0_TYPE* boxe
         if (class_idx == BACKGROUND_CLASS)
             continue;
 
-        uint detected = FUNC_CALL(nms)(boxes, scores + class_idx * NUM_BOXES, batch_idx, class_idx, box_info + detection_count);
+        #ifdef HAS_ROISNUM
+            const __global INPUT0_TYPE* boxes_ptr = boxes + class_idx * num_boxes * 4;
+        #else
+            const __global INPUT0_TYPE* boxes_ptr = boxes;
+        #endif
+        const __global INPUT0_TYPE* scores_ptr = scores + class_idx * num_boxes;
 
+        uint detected = FUNC_CALL(nms)(boxes_ptr, scores_ptr, batch_idx, class_idx, box_info + detection_count);
 /*
         printf("OCL Post nms batch=%d class=%d detected=%d detection_count=%d\n", batch_idx, class_idx, detected, detection_count);
         for(uint i=0; i<detected; ++i) {
@@ -409,16 +416,40 @@ KERNEL(multiclass_nms_ref)(
     __global OUTPUT_TYPE* selected_outputs) {
 
     OUTPUT_INDICES_TYPE box_info_offset = 0;
+    uint boxes_offset = 0;
+    uint scores_offset = 0;
 
     for (uint batch_idx = 0; batch_idx < NUM_BATCHES; ++batch_idx) {
-        const __global INPUT0_TYPE* boxes_ptr = boxes + batch_idx * NUM_BOXES * 4;
-        const __global INPUT0_TYPE* scores_ptr = scores + batch_idx * NUM_CLASSES * NUM_BOXES;
+        uint num_boxes;
+        #ifdef HAS_ROISNUM
+            num_boxes = roisnum[batch_idx];
+            if(num_boxes <= 0) {
+                selected_num[batch_idx] = 0;
+                continue;
+            }
+        #else
+            num_boxes = NUM_BOXES;
+            boxes_offset = batch_idx * NUM_BOXES * 4;
+            scores_offset = batch_idx * NUM_CLASSES * NUM_BOXES;
+        #endif
 
-        uint nselected = FUNC_CALL(multiclass_nms)(boxes_ptr, scores_ptr, batch_idx, box_info + box_info_offset);
+        const __global INPUT0_TYPE* boxes_ptr = boxes + boxes_offset;
+        const __global INPUT0_TYPE* scores_ptr = scores + scores_offset;
+
+        uint nselected = FUNC_CALL(multiclass_nms)(boxes_ptr, scores_ptr, num_boxes, batch_idx, box_info + box_info_offset);
 
         selected_num[batch_idx] = nselected;
 
+        //printf("batch_idx=%d num_boxes=%d nselected=%d\n", batch_idx, num_boxes, nselected);
+
         box_info_offset += nselected;
+
+        #ifdef HAS_ROISNUM
+            // но єто не точно...
+            boxes_offset += NUM_CLASSES * num_boxes * 4;
+            scores_offset += NUM_CLASSES * num_boxes;
+        #endif
+
     }// for - batch_idx
 
 /*
@@ -473,6 +504,8 @@ KERNEL(multiclass_nms_ref)(
 */
 }
 
+/*
+
 #else// HAS_ROISNUM
 
 #    define INPUT_INDICES_TYPE INPUT2_TYPE
@@ -489,3 +522,4 @@ KERNEL(multiclass_nms_ref)
 }
 
 #endif  // HAS_ROISNUM
+*/
