@@ -418,8 +418,27 @@ KERNEL(multiclass_nms_ref)(
 
         selected_num[batch_idx] = nselected;
 
+        box_info_offset += nselected;
+    }// for - batch_idx
+
+/*
+    offset += selected_num[NUM_BATCHES - 1];
+*/
+#if SORT_RESULT_ACROSS_BATCH
+    #if SORT_RESULT_TYPE == SORT_RESULT_SCORE
+        FUNC_CALL(quickSortIterative)(box_info, 0, box_info_offset - 1, SORTMODE_SCORE);
+    #elif SORT_RESULT_TYPE == SORT_RESULT_CLASSID
+        FUNC_CALL(quickSortIterative)(box_info, 0, box_info_offset - 1, SORTMODE_CLASS);
+    #endif
+#endif  // SORT_RESULT_ACROSS_BATCH
+
+    // fill outputs
+    box_info_offset = 0;
+    for (uint batch_idx = 0; batch_idx < NUM_BATCHES; ++batch_idx) {
         __global OUTPUT_TYPE* selected_outputs_ptr = selected_outputs + batch_idx * MAX_OUTPUT_BOXES_PER_BATCH * 6;
         __global OUTPUT_INDICES_TYPE* selected_indices_ptr = selected_indices + batch_idx * MAX_OUTPUT_BOXES_PER_BATCH;
+
+        uint nselected = selected_num[batch_idx];
         uint idx;
         for (idx = 0; idx < nselected; ++idx) {
             const __global BoxInfo* info = box_info + box_info_offset + idx;
@@ -446,19 +465,7 @@ KERNEL(multiclass_nms_ref)(
         }
 
         box_info_offset += nselected;
-
-    }// for - batch_idx
-
-/*
-    offset += selected_num[NUM_BATCHES - 1];
-*/
-#if SORT_RESULT_ACROSS_BATCH
-    #if SORT_RESULT_TYPE == SORT_RESULT_SCORE
-        FUNC_CALL(quickSortIterative)(box_info, 0, box_info_offset - 1, SORTMODE_SCORE);
-    #elif SORT_RESULT_TYPE == SORT_RESULT_CLASSID
-        FUNC_CALL(quickSortIterative)(box_info, 0, box_info_offset - 1, SORTMODE_CLASS);
-    #endif
-#endif  // SORT_RESULT_ACROSS_BATCH
+    }
 
 /*
     //size_t output_size = min(selected_num[NUM_BATCHES - 1], OUTPUT_DIM);
