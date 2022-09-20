@@ -440,7 +440,7 @@ KERNEL(multiclass_nms_ref)(
 
         selected_num[batch_idx] = nselected;
 
-        //printf("batch_idx=%d num_boxes=%d nselected=%d\n", batch_idx, num_boxes, nselected);
+        printf("OCL batch_idx=%d num_boxes=%d nselected=%d\n", batch_idx, num_boxes, nselected);
 
         box_info_offset += nselected;
 

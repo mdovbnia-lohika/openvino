@@ -527,6 +527,8 @@ void multiclass_nms(const float* boxes_data,
 
             selected_boxes = multiclass_nms(boxes.data(), boxes_sp, scores.data(), scores_sp, attrs, i, shared);
 
+            std::cout << "REF batch_idx=" << i << " num_boxes=" << roisnum_data[i] << "nselected=" << selected_boxes.size() << "\n";
+
             head += roisnum_data[i];
         }
 
