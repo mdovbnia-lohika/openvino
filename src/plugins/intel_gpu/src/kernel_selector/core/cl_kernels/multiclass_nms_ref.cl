@@ -252,10 +252,11 @@ inline OUTPUT_INDICES_TYPE FUNC(nms)(const __global INPUT0_TYPE* boxes,
                                      const __global INPUT0_TYPE* scores,
                                      OUTPUT_INDICES_TYPE batch_idx,
                                      OUTPUT_INDICES_TYPE class_idx,
+                                     uint num_boxes,
                                      __global BoxInfo* box_info) {
     size_t candidates_num = 0;
 
-    for (OUTPUT_INDICES_TYPE box_idx = 0; box_idx < NUM_BOXES; ++box_idx) {
+    for (OUTPUT_INDICES_TYPE box_idx = 0; box_idx < num_boxes/*NUM_BOXES*/; ++box_idx) {
         if (scores[box_idx] < SCORE_THRESHOLD) {
             continue;
         }
@@ -356,12 +357,14 @@ inline OUTPUT_INDICES_TYPE FUNC(multiclass_nms)(const __global INPUT0_TYPE* boxe
 
         #ifdef HAS_ROISNUM
             const __global INPUT0_TYPE* boxes_ptr = boxes + class_idx * num_boxes * 4;
+            //printf("batch_idx=%d class_idx=%d numboxes=%d\n", batch_idx, class_idx, num_boxes);
         #else
             const __global INPUT0_TYPE* boxes_ptr = boxes;
         #endif
         const __global INPUT0_TYPE* scores_ptr = scores + class_idx * num_boxes;
 
-        uint detected = FUNC_CALL(nms)(boxes_ptr, scores_ptr, batch_idx, class_idx, box_info + detection_count);
+        uint detected = FUNC_CALL(nms)(boxes_ptr, scores_ptr, batch_idx, class_idx, num_boxes, box_info + detection_count);
+
 /*
         printf("OCL Post nms batch=%d class=%d detected=%d detection_count=%d\n", batch_idx, class_idx, detected, detection_count);
         for(uint i=0; i<detected; ++i) {
@@ -377,7 +380,7 @@ inline OUTPUT_INDICES_TYPE FUNC(multiclass_nms)(const __global INPUT0_TYPE* boxe
 
 /*
 printf("********** detection_count=%d\n", detection_count);
-    printf("OCL Post nms sort batch=%d \n", batch_idx);
+    printf("OCL Post nms sort\n", batch_idx);
     for(uint i=0; i<detection_count; ++i) {
         __global const BoxInfo* box = box_info + i;
         printf("OCL %d %d %d %f\n", box->batch_idx, box->class_idx, box->index, box->score);
@@ -440,7 +443,7 @@ KERNEL(multiclass_nms_ref)(
 
         selected_num[batch_idx] = nselected;
 
-        printf("OCL batch_idx=%d num_boxes=%d nselected=%d\n", batch_idx, num_boxes, nselected);
+        //printf("OCL batch_idx=%d num_boxes=%d nselected=%d\n", batch_idx, num_boxes, nselected);
 
         box_info_offset += nselected;
 
@@ -451,6 +454,7 @@ KERNEL(multiclass_nms_ref)(
         #endif
 
     }// for - batch_idx
+
 
 /*
     offset += selected_num[NUM_BATCHES - 1];
@@ -470,6 +474,7 @@ KERNEL(multiclass_nms_ref)(
         __global OUTPUT_INDICES_TYPE* selected_indices_ptr = selected_indices + batch_idx * MAX_OUTPUT_BOXES_PER_BATCH;
 
         uint nselected = selected_num[batch_idx];
+
         uint idx;
         for (idx = 0; idx < nselected; ++idx) {
             const __global BoxInfo* info = box_info + box_info_offset + idx;
@@ -480,7 +485,22 @@ KERNEL(multiclass_nms_ref)(
             selected_outputs_ptr[6 * idx + 4] = info->xmax;
             selected_outputs_ptr[6 * idx + 5] = info->ymax;
 
-            selected_indices_ptr[idx] = info->batch_idx * NUM_BOXES + info->index;
+            #ifdef HAS_ROISNUM
+                uint num_boxes = roisnum[batch_idx];
+                /*if(num_boxes <= 0) { selected_num[batch_idx] = 0; continue; }*/
+                uint offset = 0;
+                for (uint i = 0; i < info->batch_idx; ++i) {
+                    offset += roisnum[i];
+                }
+
+//                SelectedIndex(int64_t batch_idx, int64_t box_idx, int64_t num_box)
+//                    : flattened_index(batch_idx * num_box + box_idx) {}
+//                selected_index = {(offset + box_info.index), box_info.class_index, num_classes};
+//                num_classes = static_cast<int64_t>(boxes_data_shape[0]);
+                selected_indices_ptr[idx] = (offset + info->index) * NUM_CLASSES + info->class_idx;
+            #else
+                selected_indices_ptr[idx] = info->batch_idx * NUM_BOXES + info->index;
+            #endif
         }
 
         // tail

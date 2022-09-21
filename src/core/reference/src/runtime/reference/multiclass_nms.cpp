@@ -380,7 +380,7 @@ static const std::vector<BoxInfo> multiclass_nms(const float* boxes_data,
         }
 
 /*
-        std::cout << "REF Post nms batch=?" << " class=" << class_idx << "detected=" << selected.size() << "\n";
+        std::cout << "REF Post nms batch=?" << " class=" << class_idx << " detected=" << selected.size() << "\n";
         for(const auto& s : selected) {
             std::cout << "REF " << s.batch_index << " " << s.class_index << " " << s.index << " " << s.score << "\n";
         }
@@ -398,6 +398,7 @@ static const std::vector<BoxInfo> multiclass_nms(const float* boxes_data,
                 ((l.score > r.score) || ((std::fabs(l.score - r.score) < 1e-6) && l.class_index < r.class_index) ||
                  ((std::fabs(l.score - r.score) < 1e-6) && l.class_index == r.class_index && l.index < r.index)));
     });
+
 /*
 std::cout << "**********\n";
     std::cout << "REF post nms sort \n";
@@ -527,7 +528,7 @@ void multiclass_nms(const float* boxes_data,
 
             selected_boxes = multiclass_nms(boxes.data(), boxes_sp, scores.data(), scores_sp, attrs, i, shared);
 
-            std::cout << "REF batch_idx=" << i << " num_boxes=" << roisnum_data[i] << "nselected=" << selected_boxes.size() << "\n";
+            //std::cout << "REF batch_idx=" << i << " num_boxes=" << roisnum_data[i] << " nselected=" << selected_boxes.size() << "\n";
 
             head += roisnum_data[i];
         }
