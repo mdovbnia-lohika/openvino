@@ -260,13 +260,15 @@ inline OUTPUT_INDICES_TYPE FUNC(nms)(const __global INPUT0_TYPE* boxes,
 
         #ifdef HAS_ROISNUM
             __global INPUT0_TYPE* score_ptr = scores + class_idx * NUM_BOXES;
-            __global INPUT0_TYPE* box_ptr = boxes + class_idx * NUM_CLASSES * 4;
+            __global INPUT0_TYPE* box_ptr = boxes + class_idx * NUM_BOXES * 4;
         #else
             __global INPUT0_TYPE* score_ptr = scores;
             __global INPUT0_TYPE* box_ptr = boxes;
         #endif
 
+/*
         printf("OCL (nms) batch=%d class=%d box_idx=%d score=%f\n", batch_idx, class_idx, box_idx, score_ptr[box_idx]);
+*/
 
         if (score_ptr[box_idx] < SCORE_THRESHOLD) {
             continue;
@@ -325,8 +327,12 @@ inline OUTPUT_INDICES_TYPE FUNC(nms)(const __global INPUT0_TYPE* boxes,
     for (size_t i = 0; i < candidates_num; ++i) {
         __global BoxInfo* next_candidate = box_info + i;
 
+/*
+        if (batch_idx == 5 && class_idx == 0) {
+            printf("OCL score %f batch_idx %d class_idx %d index %d\n", next_candidate->score, next_candidate->batch_idx, next_candidate->class_idx,  next_candidate->index);
+        }
+*/
 //        printf("next_candidate.box: %f %f %f %f\n", next_candidate->xmin, next_candidate->ymin, next_candidate->xmax, next_candidate->ymax);
-//        printf("OCL  score %f class_idx %d batch_idx %d index %d\n", next_candidate->score, next_candidate->class_idx, next_candidate->batch_idx, next_candidate->index);
         bool should_hard_suppress = false;
 
         if (NMS_ETA < 1 && adaptive_threshold > 0.5) // FIXME: macro for half
@@ -340,8 +346,8 @@ inline OUTPUT_INDICES_TYPE FUNC(nms)(const __global INPUT0_TYPE* boxes,
 //            printf("selected.box: %f %f %f %f\n", selected->xmin, selected->ymin, selected->xmax, selected->ymax);
 //            printf("  class_idx: %d, i: %d, j: %d, iou: %f\n", class_idx, i, j, iou);
             if (iou >= adaptive_threshold) {
-
                 should_hard_suppress = true;
+                printf("OCL should_hard_suppress = true score %f batch_idx %d class_idx %d index %d\n", next_candidate->score, next_candidate->batch_idx, next_candidate->class_idx,  next_candidate->index);
             }
         }
         if (!should_hard_suppress) {
@@ -434,12 +440,13 @@ KERNEL(multiclass_nms_ref)(
     uint boxes_offset = 0;
     uint scores_offset = 0;
 
-
+/*
     printf("scores\n");
     for(uint z = 0; z < NUM_CLASSES * 100; ++z) {
         printf("%f ", scores[z]);
     }
     printf("\n");
+*/
 
     for (uint batch_idx = 0; batch_idx < NUM_BATCHES; ++batch_idx) {
         uint num_boxes;
@@ -467,7 +474,7 @@ KERNEL(multiclass_nms_ref)(
         printf("\n");
 */
 
-        printf("OCL main batch_idx=%d scores_offset=%d\n", batch_idx, scores_offset);
+        //printf("OCL main batch_idx=%d scores_offset=%d\n", batch_idx, scores_offset);
         uint nselected = FUNC_CALL(multiclass_nms)(boxes_ptr, scores_ptr, num_boxes, batch_idx, box_info + box_info_offset);
 
         selected_num[batch_idx] = nselected;
