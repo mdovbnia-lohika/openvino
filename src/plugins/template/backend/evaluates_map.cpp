@@ -2007,6 +2007,21 @@ bool evaluate(const shared_ptr<op::v9::MulticlassNms>& op,
     void* prois;
     size_t num_selected = static_cast<size_t>(std::accumulate(valid_outputs.begin(), valid_outputs.end(), 0));
 
+/*
+    std::cout << "valid outputs:\n";
+    for(size_t i=0; i < valid_outputs.size(); ++i) {
+        std::cout << "i=" << i << " num_selected=" << valid_outputs[i] << "\n";
+    }
+*/
+
+/*
+    std::cout << "selected indices:\n";
+    for(size_t i=0; i < selected_indices.size(); ++i) {
+        std::cout << selected_indices[i] << " ";
+    }
+    std::cout << "\n";
+*/
+
     outputs[0]->set_shape({num_selected, 6});
     prois = outputs[0]->get_data_ptr();
 
