@@ -182,6 +182,9 @@ inline void FUNC(bubbleSortIterative)(__global BoxInfo* arr, int l, int h, int s
 }
 
 inline void FUNC(quickSortIterative)(__global BoxInfo* arr, int l, int h, int sortMode) {
+    if (l == h || l < 0 || h <= 0) {
+        return;
+    }
     // Create an auxiliary stack
     const int kStackSize = 100;
     int stack[kStackSize];
