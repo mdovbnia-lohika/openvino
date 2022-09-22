@@ -2008,14 +2008,12 @@ bool evaluate(const shared_ptr<op::v9::MulticlassNms>& op,
     size_t num_selected = static_cast<size_t>(std::accumulate(valid_outputs.begin(), valid_outputs.end(), 0));
 
 /*
-    std::cout << "valid outputs:\n";
+    std::cout << "REF valid outputs:\n";
     for(size_t i=0; i < valid_outputs.size(); ++i) {
         std::cout << "i=" << i << " num_selected=" << valid_outputs[i] << "\n";
     }
-*/
 
-/*
-    std::cout << "selected indices:\n";
+    std::cout << "REF selected indices:\n";
     for(size_t i=0; i < selected_indices.size(); ++i) {
         std::cout << selected_indices[i] << " ";
     }
