@@ -256,10 +256,12 @@ static const std::vector<BoxInfo> nms(const float* boxes_data,
             candidate_boxes.emplace_back(bboxesPtr[box_idx], box_idx, scoresPtr[box_idx], 0, image_idx, class_idx);
         }
 
+/*
         std::cout << "REF (nms) candidate batch="
                   << image_idx << " class=" << class_idx << " box_idx=" << box_idx << " score=" << scoresPtr[box_idx]
                   << "(" << bboxesPtr[box_idx].x1 << ", " << bboxesPtr[box_idx].y1 << ", "
                   << bboxesPtr[box_idx].x2 << ", " << bboxesPtr[box_idx].y2 << ")\n";
+*/
 
     }
 
@@ -613,6 +615,11 @@ void multiclass_nms(const float* boxes_data,
                 offset += roisnum_data[i];
             }
             selected_index = {(offset + box_info.index), box_info.class_index, num_classes};
+/*
+            std::cout << "REF selected_indices[idx]=" << selected_index.flattened_index
+                      << "idx=" << idx << " offset=" << offset << " index=" << box_info.index
+                      << " class_idx" << box_info.class_index << " batch_idx" << box_info.batch_index << "\n";
+*/
         }
         SelectedOutput selected_score{static_cast<float>(box_info.class_index),
                                       box_info.score,

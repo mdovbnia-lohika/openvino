@@ -115,7 +115,8 @@ void MulticlassNmsLayerTest::generate_inputs(const std::vector<ngraph::Shape>& t
             auto roisnum = _generate_roisnum(targetInputStaticShapes[i][0], targetInputStaticShapes[0][1]/*num_bboxes*/);
 /*
             if (targetInputStaticShapes[i][0] == 10) {
-                roisnum = {0, 0, 10, 10, 10, 30, 0, 10, 20, 10}; // fail
+                //roisnum = {0, 0, 10, 10, 10, 30, 0, 10, 20, 10}; // fail
+                roisnum = {0, 0, 1, 1, 1, 3, 0, 1, 2, 1}; // fail
                 //roisnum = {2, 1, 0, 2, 0, 1, 0, 1, 2, 1}; // pass
             }
 */
