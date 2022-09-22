@@ -215,7 +215,7 @@ std::vector<T> slice_image(const T* data, const Shape& data_shape, const int64_t
                     "Invaid inputs as it is trying to slice data out of range.");
 
     const auto row_num = item_num * item_size;
-    slice_data.reserve(class_num * row_num);
+    slice_data.resize/*reserve*/(class_num * row_num);
     T* item_data = slice_data.data();
     T* src = const_cast<T*>(data + start * item_size);
     for (size_t i = 0; i < class_num; i++) {
@@ -246,6 +246,10 @@ static const std::vector<BoxInfo> nms(const float* boxes_data,
 
     std::vector<BoxInfo> candidate_boxes;
     for (int64_t box_idx = 0; box_idx < num_priors; box_idx++) {
+
+        std::cout << "REF (nms) batch=" << image_idx << " class=" << class_idx << " box_idx=" << box_idx <<
+        " score=" << scoresPtr[box_idx] << "\n";
+
         if (scoresPtr[box_idx] >= attrs.score_threshold) { /* NOTE: ">=" instead of ">" used in PDPD */
             candidate_boxes.emplace_back(bboxesPtr[box_idx], box_idx, scoresPtr[box_idx], 0, image_idx, class_idx);
         }
@@ -265,7 +269,7 @@ static const std::vector<BoxInfo> nms(const float* boxes_data,
     }
 
 /*
-    std::cout << "REF Before sort\n";
+    std::cout << "REF (nms) Before sort batch_idx=" << image_idx << "\n";
     for(const auto& candidate : std::vector<BoxInfo>{candidate_boxes.begin(), candidate_boxes.begin() + candiate_size}) {
         std::cout << "REF score " << candidate.score
                   << " class_idx " << candidate.class_index
@@ -380,7 +384,7 @@ static const std::vector<BoxInfo> multiclass_nms(const float* boxes_data,
         }
 
 /*
-        std::cout << "REF Post nms batch=?" << " class=" << class_idx << " detected=" << selected.size() << "\n";
+        std::cout << "REF Post nms batch=" << image_idx << " class=" << class_idx << " detected=" << selected.size() << "\n";
         for(const auto& s : selected) {
             std::cout << "REF " << s.batch_index << " " << s.class_index << " " << s.index << " " << s.score << "\n";
         }
@@ -400,8 +404,8 @@ static const std::vector<BoxInfo> multiclass_nms(const float* boxes_data,
     });
 
 /*
-std::cout << "**********\n";
-    std::cout << "REF post nms sort \n";
+std::cout << "********** detection_count=" << selected_boxes.size() << "\n";
+    std::cout << "REF post nms sort batch_idx=" << image_idx << "\n";
     for(const auto& s : selected_boxes) {
         std::cout << "REF " << s.batch_index << " " << s.class_index << " " << s.index << " " << s.score << "\n";
     }
@@ -526,9 +530,16 @@ void multiclass_nms(const float* boxes_data,
             const Shape boxes_sp = {num_classes, static_cast<size_t>(roisnum_data[i]), 4};
             const Shape scores_sp = {num_classes, static_cast<size_t>(roisnum_data[i])};
 
+/*
+            std::cout << "REF PROCESSING pre multiclass_nms batch_idx=" << i << "\n";
+            for (const auto s : scores) {
+                std::cout << s << " ";
+            }
+*/
+            std::cout << "REF main batch_idx=" << i << " head=" << head << "\n";
             selected_boxes = multiclass_nms(boxes.data(), boxes_sp, scores.data(), scores_sp, attrs, i, shared);
 
-            //std::cout << "REF batch_idx=" << i << " num_boxes=" << roisnum_data[i] << " nselected=" << selected_boxes.size() << "\n";
+            //std::cout << "REF PROCESSING post multiclass_nms batch_idx=" << i << " num_boxes=" << roisnum_data[i] << " nselected=" << selected_boxes.size() << "\n";
 
             head += roisnum_data[i];
         }
