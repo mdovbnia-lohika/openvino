@@ -356,7 +356,7 @@ inline OUTPUT_INDICES_TYPE FUNC(nms)(const __global INPUT0_TYPE* boxes,
 //            printf("  class_idx: %d, i: %d, j: %d, iou: %f\n", class_idx, i, j, iou);
             if (iou >= adaptive_threshold) {
                 should_hard_suppress = true;
-                printf("OCL should_hard_suppress = true score %f batch_idx %d class_idx %d index %d\n", next_candidate->score, next_candidate->batch_idx, next_candidate->class_idx,  next_candidate->index);
+//                printf("OCL should_hard_suppress = true score %f batch_idx %d class_idx %d index %d\n", next_candidate->score, next_candidate->batch_idx, next_candidate->class_idx,  next_candidate->index);
             }
         }
         if (!should_hard_suppress) {
@@ -577,10 +577,8 @@ KERNEL(multiclass_nms_ref)(
         for (idx = 0; idx < nselected; ++idx) {
             const __global BoxInfo* info = box_info + box_info_offset + idx;
 
-/*
-            printf("    OCL boxinfo idx=%d index=%d class_idx=%d batch_idx=%d score=%f\n",
-                idx, info->index, info->class_idx, info->batch_idx, info->score);
-*/
+//            printf("OCL boxinfo idx=%d index=%d class_idx=%d batch_idx=%d score=%f\n",
+//                idx, info->index, info->class_idx, info->batch_idx, info->score);
 
             selected_outputs_ptr[6 * idx + 0] = (OUTPUT_TYPE)info->class_idx;
             selected_outputs_ptr[6 * idx + 1] = info->score;
@@ -613,11 +611,10 @@ KERNEL(multiclass_nms_ref)(
                 selected_indices_ptr[idx] = info->batch_idx * NUM_BOXES + info->index;
             #endif
 
-/*
-            printf("selected_indices_ptr[%d]=%d\n", idx, selected_indices_ptr[idx]);
-*/
+            //printf("OCL selected_indices_ptr[%d]=%d\n", idx, selected_indices_ptr[idx]);
         }
 
+//        printf("OCL before tail batch_idx=%d idx=%d nselected=%d\n", batch_idx, idx, nselected);
         // tail
         for (; idx < MAX_OUTPUT_BOXES_PER_BATCH; ++idx) {
             selected_outputs_ptr[6 * idx + 0] = -1;
@@ -633,6 +630,15 @@ KERNEL(multiclass_nms_ref)(
         box_info_offset += nselected;
     }
 
+/*
+    printf("OCL selected_indices:\n");
+    for(uint b=0; b < NUM_BATCHES; ++b) {
+        for(uint z=0; z < MAX_OUTPUT_BOXES_PER_BATCH; ++z) {
+            printf("%d ", selected_indices[b * MAX_OUTPUT_BOXES_PER_BATCH + z]);
+        }
+        printf("\n");
+    }
+*/
 /*
     //size_t output_size = min(selected_num[NUM_BATCHES - 1], OUTPUT_DIM);
 //    size_t output_size = offset;

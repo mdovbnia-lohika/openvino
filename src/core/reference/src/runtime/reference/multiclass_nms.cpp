@@ -336,11 +336,13 @@ static const std::vector<BoxInfo> nms(const float* boxes_data,
 
             if (iou >= adaptive_threshold) {
                 should_hard_suppress = true;
-            std::cout << "REF should_hard_suppress = true score " << next_candidate.score
-                      << " batch_idx "  << next_candidate.batch_index
-                      << " class_idx "  << next_candidate.class_index
-                      << " index "  << next_candidate.index
-                      << std::endl;
+/*
+                std::cout << "REF should_hard_suppress = true score " << next_candidate.score
+                          << " batch_idx "  << next_candidate.batch_index
+                          << " class_idx "  << next_candidate.class_index
+                          << " index "  << next_candidate.index
+                          << std::endl;
+*/
                 break;
             }
 
