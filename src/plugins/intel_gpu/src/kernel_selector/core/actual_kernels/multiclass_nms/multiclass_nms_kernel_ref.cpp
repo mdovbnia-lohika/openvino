@@ -47,15 +47,14 @@ JitConstants MulticlassNmsKernelRef::GetJitConstants(const multiclass_nms_params
 
     // FIXME opoluektov: hardcoding
     const auto num_batches = params.has_roisnum ? params.inputs[2].Batch().v : params.inputs[1].Batch().v;
-    int64_t num_classes = params.has_roisnum ? params.inputs[0].Batch().v : params.inputs[1].Feature().v;
+    const int64_t num_classes = params.has_roisnum ? params.inputs[0].Batch().v : params.inputs[1].Feature().v;
     const auto num_boxes = params.inputs[0].Feature().v;
 
     // see shape_infer() call in MulticlassNmsIEInternal::validate_and_infer_types() - ignore_bg_class == true
-/*
+    auto real_num_classes = num_classes;
     if (params.background_class >= 0 && params.background_class < num_classes) {
-        num_classes = std::max(1l, num_classes - 1);
+        real_num_classes = std::max(1l, num_classes - 1);
     }
-*/
 
     int64_t max_output_boxes_per_class = 0;
     if (params.nms_top_k >= 0)
@@ -63,7 +62,7 @@ JitConstants MulticlassNmsKernelRef::GetJitConstants(const multiclass_nms_params
     else
         max_output_boxes_per_class = num_boxes;
 
-    auto max_output_boxes_per_batch = max_output_boxes_per_class * num_classes;
+    auto max_output_boxes_per_batch = max_output_boxes_per_class * real_num_classes;
     if (params.keep_top_k >= 0)
         max_output_boxes_per_batch = std::min<int>(max_output_boxes_per_batch, params.keep_top_k);
 

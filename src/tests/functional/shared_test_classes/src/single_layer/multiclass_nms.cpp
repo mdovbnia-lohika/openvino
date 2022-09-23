@@ -158,10 +158,8 @@ void MulticlassNmsLayerTest::GetOutputParams(size_t& numBatches, size_t& maxOutp
         << "Expected numBatches, numBoxes, numClasses > 0, got:" << numBatches << ", " << numBoxes << ", " << numClasses;
 
     auto realClasses = numClasses;
-    if (!m_outStaticShape) {
-        if (m_attrs.background_class >= 0 && m_attrs.background_class < numClasses) {
-            realClasses = realClasses - 1;
-        }
+    if (m_attrs.background_class >= 0 && m_attrs.background_class < numClasses) {
+        realClasses = realClasses - 1;
     }
 
     size_t maxOutputBoxesPerClass = 0;

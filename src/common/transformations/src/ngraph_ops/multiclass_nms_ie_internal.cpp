@@ -55,7 +55,7 @@ void op::internal::MulticlassNmsIEInternal::validate_and_infer_types() {
     std::vector<PartialShape> output_shapes = {{Dimension::dynamic(), 6},
                                                {Dimension::dynamic(), 1},
                                                {Dimension::dynamic()}};
-    shape_infer(this, input_shapes, output_shapes, true, false/*true*/);
+    shape_infer(this, input_shapes, output_shapes, true, true);
     set_output_type(0, get_input_element_type(0), output_shapes[0]);
     set_output_type(1, output_type, output_shapes[1]);
     set_output_type(2, output_type, output_shapes[2]);
