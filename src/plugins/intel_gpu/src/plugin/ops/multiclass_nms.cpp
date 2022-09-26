@@ -3,7 +3,7 @@
 //
 
 #include <intel_gpu/primitives/multiclass_nms.hpp>
-#include "ngraph/op/multiclass_nms.hpp"
+#include "ngraph_ops/multiclass_nms_ie_internal.hpp"
 
 #include "intel_gpu/plugin/common_utils.hpp"
 #include "intel_gpu/plugin/program.hpp"
@@ -26,7 +26,7 @@ static cldnn::sort_result_type GetSortResultType(const ngraph::op::v9::Multiclas
     return cldnn::sort_result_type::none;
 }
 
-static void CreateMulticlassNmsOp(Program& p, const std::shared_ptr<ngraph::op::v9::MulticlassNms>& op) {
+static void CreateMulticlassNmsIEInternalOp(Program& p, const std::shared_ptr<ngraph::op::internal::MulticlassNmsIEInternal>& op) {
     validate_inputs_count(op, {2, 3});
 
     if (op->get_output_size() != 3) {
@@ -105,7 +105,7 @@ static void CreateMulticlassNmsOp(Program& p, const std::shared_ptr<ngraph::op::
     p.add_primitive(*op, mutable_prim_r2);
 }
 
-REGISTER_FACTORY_IMPL(v9, MulticlassNms);
+REGISTER_FACTORY_IMPL(internal, MulticlassNmsIEInternal);
 
 }  // namespace intel_gpu
 }  // namespace ov
