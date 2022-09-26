@@ -27,10 +27,10 @@ std::string MulticlassNmsLayerTest::getTestCaseName(const testing::TestParamInfo
 
     InputfloatVar inFloatVar;
     InputboolVar inboolVar;
-    bool v8;
+
     std::string targetDevice;
 
-    std::tie(shapes, inPrecisions, nmsTopK, inFloatVar, backgroundClass, keepTopK, outType, sortResultType, inboolVar, v8, targetDevice) = obj.param;
+    std::tie(shapes, inPrecisions, nmsTopK, inFloatVar, backgroundClass, keepTopK, outType, sortResultType, inboolVar, targetDevice) = obj.param;
 
     ElementType paramsPrec, roisnumPrec, maxBoxPrec, thrPrec;
     std::tie(paramsPrec, roisnumPrec, maxBoxPrec, thrPrec) = inPrecisions;
@@ -356,8 +356,8 @@ void MulticlassNmsLayerTest::SetUp() {
 
     InputfloatVar inFloatVar;
     InputboolVar inboolVar;
-    bool v8;
-    std::tie(shapes, inPrecisions, maxOutBoxesPerClass, inFloatVar, backgroundClass, keepTopK, outType, sortResultType, inboolVar, v8, targetDevice) =
+
+    std::tie(shapes, inPrecisions, maxOutBoxesPerClass, inFloatVar, backgroundClass, keepTopK, outType, sortResultType, inboolVar, targetDevice) =
         this->GetParam();
 
     init_input_shapes(shapes);
@@ -398,15 +398,11 @@ void MulticlassNmsLayerTest::SetUp() {
     m_attrs.background_class = backgroundClass;
     m_attrs.normalized = normalized;
 
-    std::shared_ptr<op::util::MulticlassNmsBase> nms;
+    std::shared_ptr<opset9::MulticlassNms> nms;
     if (paramOuts.size() > 2) {
         nms = std::make_shared<opset9::MulticlassNms>(paramOuts[0], paramOuts[1], paramOuts[2], m_attrs);
     } else {
-        if (v8) {
-            nms = std::make_shared<opset8::MulticlassNms>(paramOuts[0], paramOuts[1], m_attrs);
-        } else {
-            nms = std::make_shared<opset9::MulticlassNms>(paramOuts[0], paramOuts[1], m_attrs);
-        }
+        nms = std::make_shared<opset9::MulticlassNms>(paramOuts[0], paramOuts[1], m_attrs);
     }
 
     if (!m_outStaticShape) {
