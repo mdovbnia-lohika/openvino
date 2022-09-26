@@ -42,25 +42,42 @@ bool MulticlassNmsKernelRef::Validate(const Params& p, const optional_params& o)
     return true;
 }
 
+namespace {
+MulticlassNmsKernelRef::DispatchData SetDefault(const multiclass_nms_params& params, size_t idx) {
+    MulticlassNmsKernelRef::DispatchData dispatch_data;
+    dispatch_data.gws = {1, 1, 1};
+    dispatch_data.lws = {1, 1, 1}; /*GetOptimalLocalWorkGroupSizes(dispatch_data.gws, params.engineInfo);*/
+    return dispatch_data;
+}
+}  // namespace
+
+void MulticlassNmsKernelRef::SetKernelArguments(const multiclass_nms_params& params,
+                                                size_t idx, cldnn::arguments_desc& arguments) const {
+    for (auto i = 0; i < 2 + params.has_roisnum + 2; ++i) {
+        arguments.push_back({ArgumentDescriptor::Types::INPUT, (uint32_t)i});
+    }
+    arguments.push_back({ArgumentDescriptor::Types::INTERNAL_BUFFER, 0});
+    arguments.push_back({ArgumentDescriptor::Types::OUTPUT, 0});
+}
+
 JitConstants MulticlassNmsKernelRef::GetJitConstants(const multiclass_nms_params& params) const {
     JitConstants jit = MakeBaseParamsJitConstants(params);
 
-    // FIXME opoluektov: hardcoding
     const auto num_batches = params.has_roisnum ? params.inputs[2].Batch().v : params.inputs[1].Batch().v;
     const int64_t num_classes = params.has_roisnum ? params.inputs[0].Batch().v : params.inputs[1].Feature().v;
     const auto num_boxes = params.inputs[0].Feature().v;
 
-    // see shape_infer() call in MulticlassNmsIEInternal::validate_and_infer_types() - ignore_bg_class == true
     auto real_num_classes = num_classes;
     if (params.background_class >= 0 && params.background_class < num_classes) {
         real_num_classes = std::max(1l, num_classes - 1);
     }
 
     int64_t max_output_boxes_per_class = 0;
-    if (params.nms_top_k >= 0)
+    if (params.nms_top_k >= 0) {
         max_output_boxes_per_class = std::min<int>(num_boxes, params.nms_top_k);
-    else
+    } else {
         max_output_boxes_per_class = num_boxes;
+    }
 
     auto max_output_boxes_per_batch = max_output_boxes_per_class * real_num_classes;
     if (params.keep_top_k >= 0)
@@ -97,65 +114,15 @@ JitConstants MulticlassNmsKernelRef::GetJitConstants(const multiclass_nms_params
     return jit;
 }
 
-using DispatchData = CommonDispatchData;
-
-void MulticlassNmsKernelRef::PrepareKernelCommon(const multiclass_nms_params& params,
-                                                 const optional_params& options,
-                                                 std::vector<size_t> gws,
-                                                 const std::string& stage_name,
-                                                 size_t stage_index,
-                                                 clKernelData& kernel) const {
-    DispatchData dispatch_data;
-    dispatch_data.gws = std::move(gws);
-    dispatch_data.lws = {1, 1, 1}; /*GetOptimalLocalWorkGroupSizes(dispatch_data.gws, params.engineInfo);*/
-
-    const auto entry_point = GetEntryPoint(kernelName, params.layerID, params, options, stage_index);
-    auto cldnn_jit = GetJitConstants(params);
-    cldnn_jit.AddConstant(MakeJitConstant(stage_name, "true"));
-
-    const auto jit = CreateJit(kernelName, cldnn_jit, entry_point);
-    KernelBase::CheckDispatchData(kernelName, dispatch_data, params.engineInfo.maxWorkGroupSize);
-    kernel.params.workGroups.global = dispatch_data.gws;
-    kernel.params.workGroups.local = dispatch_data.lws;
-    kernel.code.kernelString = GetKernelString(kernelName, jit, entry_point, params.engineInfo);
-}
-
-void MulticlassNmsKernelRef::PrepareEverythingKernel(const multiclass_nms_params& params,
-                                                     const optional_params& options,
-                                                     clKernelData& kernel) const {
-    //    const size_t roi_count = params.inputs[kScoresInputIdx].Batch().v;
-    //    const size_t class_count = params.num_classes;
-
-    const std::vector<size_t> gws = {1, 1, 1};
-    PrepareKernelCommon(params, options, gws, "MULTICLASS_STAGE_EVERYTHING", 0, kernel);
-
-    for (auto i = 0; i < 2 + params.has_roisnum + 2; ++i) {
-        kernel.params.arguments.push_back({ArgumentDescriptor::Types::INPUT, (uint32_t)i});
-    }
-
-    kernel.params.arguments.push_back({ArgumentDescriptor::Types::INTERNAL_BUFFER, 0});
-    kernel.params.arguments.push_back({ArgumentDescriptor::Types::OUTPUT, 0});
-
-    //    kernel.params.arguments.push_back({ArgumentDescriptor::Types::INPUT, kBoxesInputIdx});
-    //    kernel.params.arguments.push_back({ArgumentDescriptor::Types::INPUT, kDeltasInputIdx});
-    //    kernel.params.arguments.push_back({ArgumentDescriptor::Types::INPUT, kScoresInputIdx});
-    //    kernel.params.arguments.push_back({ArgumentDescriptor::Types::INPUT, kImInfoInputIdx});
-    //    kernel.params.arguments.push_back({ArgumentDescriptor::Types::INTERNAL_BUFFER, kRefinedBoxesBufferIdx});
-    //    kernel.params.arguments.push_back({ArgumentDescriptor::Types::INTERNAL_BUFFER, kRefinedBoxAreasBufferIdx});
-    //    kernel.params.arguments.push_back({ArgumentDescriptor::Types::INTERNAL_BUFFER, kRefinedScoresBufferIdx});
-}
-
 KernelsData MulticlassNmsKernelRef::GetKernelsData(const Params& params, const optional_params& options) const {
     if (!Validate(params, options)) {
         return {};
     }
 
-    constexpr size_t kKernelCount = 1;  // FIXME opoluektov
-    KernelData kd = KernelData::Default<multiclass_nms_params>(params, kKernelCount);
+    constexpr size_t kKernelsNum = 1;  // FIXME opoluektov
+    KernelData kd = KernelData::Default<multiclass_nms_params>(params, kKernelsNum);
     const auto& op_params = static_cast<const multiclass_nms_params&>(params);
 
-    //    const auto roi_count = op_params.inputs[kScoresInputIdx].Batch().v;
-    //    const auto class_count = static_cast<size_t>(op_params.num_classes);
 
     // FIXME opoluektov: copy-paste
     const auto num_batches = op_params.has_roisnum ? op_params.inputs[2].Batch().v : op_params.inputs[0].Batch().v;
@@ -170,14 +137,22 @@ KernelsData MulticlassNmsKernelRef::GetKernelsData(const Params& params, const o
     const auto total_boxes = num_batches * num_classes * num_boxes;
     kd.internalBufferSizes[0] = box_size * total_boxes;
 
-    //    kd.internalBufferSizes.resize(kBufferCount);
-    //    kd.internalBufferSizes[kRefinedBoxesBufferIdx] = class_count * roi_count * 4 * sizeof(float);
-    //    kd.internalBufferSizes[kRefinedBoxAreasBufferIdx] = class_count * roi_count * sizeof(float);
-    //    kd.internalBufferSizes[kRefinedScoresBufferIdx] = class_count * roi_count * sizeof(float);
-    //    kd.internalBufferSizes[kScoreClassIndexBufferIdx] = class_count * roi_count * 12;  // sizeof ScoreClassIndex
-    //    kd.internalBufferSizes[kDetectionCountBufferIdx] = sizeof(uint32_t);
+    for (size_t i = 0; i < kKernelsNum; ++i) {
+        const auto dispatch_data = SetDefault(op_params, i);
+        const auto entry_point = GetEntryPoint(kernelName, op_params.layerID, params, options, i);
+        auto cldnn_jit = GetJitConstants(op_params);
 
-    PrepareEverythingKernel(op_params, options, kd.kernels[0]);
+        //cldnn_jit.AddConstant(MakeJitConstant("MULTICLASSNMS_STAGE_" + std::to_string(i), "true"));
+
+        const auto jit = CreateJit(kernelName, cldnn_jit, entry_point);
+        KernelBase::CheckDispatchData(kernelName, dispatch_data, params.engineInfo.maxWorkGroupSize);
+        auto& kernel = kd.kernels[i];
+
+        kernel.params.workGroups.global = dispatch_data.gws;
+        kernel.params.workGroups.local = dispatch_data.lws;
+        kernel.code.kernelString = GetKernelString(kernelName, jit, entry_point, params.engineInfo);
+        SetKernelArguments(op_params, i, kernel.params.arguments);
+    }
 
     return {kd};
 }

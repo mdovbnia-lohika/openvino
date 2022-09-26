@@ -1,46 +1,14 @@
 
 #include "include/batch_headers/data_types.cl"
 
+
 #define SORT_RESULT_CLASSID 0
 #define SORT_RESULT_SCORE 1
 
-#define INPUT_INDICES_TYPE int32
-
-//#ifndef HAS_ROISNUM
-
-// KERNEL(whats_your_name_again)
-//(const __global INPUT0_TYPE* boxes,
-//  const __global INPUT0_TYPE* scores,
-//  __global OUTPUT_INDICES_TYPE* selected_indices,
-//  __global OUTPUT_INDICES_TYPE* selected_num,
-//  __global OUTPUT_TYPE* selected_outputs) {
-//
-//     const  OUTPUT_TYPE selected_outputs_[] = {
-//         0.00, 0.95, 0.00, 10.00, 1.00, 11.00, 1.00, 0.95,
-//         0.00, 0.00, 1.00, 1.00,  0.00, 0.90,  0.00, 0.00,
-//         1.00, 1.00, 1.00, 0.80,  0.00, 10.00, 1.00, 11.00};
-//
-//     const  OUTPUT_INDICES_TYPE selected_indices_[] = {3, 0, 0, 3};
-//
-//     int n = 0;
-//     for (; n < 4; ++n) {
-//         for (int i = 0; i < 6; ++i) {
-//             selected_outputs[6 * n + i] = selected_outputs_[6 * n + i];
-//         }
-//         selected_indices[n] = selected_indices_[n];
-//     }
-//     *selected_num = 4;
-//     for (; n < OUTPUT_DIM; ++n) {
-//         for (int i = 0; i < 6; ++i) {
-//             selected_outputs[6 * n + i] = 0;
-//         }
-//         selected_indices[n] = 0;
-//     }
-//
-//     //barrier(CLK_GLOBAL_MEM_FENCE);
-//
-//     printf("Two 2 inputs\n");
-// }
+#define SORTMODE_CLASS 0
+#define SORTMODE_SCORE 1
+#define SORTMODE_SCORE_THEN_INDEX 2
+#define SORTMODE_SCORE_THEN_CLASS 3
 
 typedef struct __attribute__((__packed__)) {
     INPUT0_TYPE score;
@@ -54,18 +22,13 @@ typedef struct __attribute__((__packed__)) {
 
 } FUNC(BOX_INFO);
 
-#    define BoxInfo FUNC(BOX_INFO)
+#define BoxInfo FUNC(BOX_INFO)
 
 inline void FUNC(swap_info)(__global BoxInfo* a, __global BoxInfo* b) {
     const BoxInfo temp = *a;
     *a = *b;
     *b = temp;
 }
-
-#define SORTMODE_CLASS 0
-#define SORTMODE_SCORE 1
-#define SORTMODE_SCORE_THEN_INDEX 2
-#define SORTMODE_SCORE_THEN_CLASS 3
 
 inline int FUNC(partition)(__global BoxInfo* arr, int l, int h, int sortMode) {
     const BoxInfo pivot = arr[h];
@@ -259,7 +222,7 @@ inline OUTPUT_INDICES_TYPE FUNC(nms)(const __global INPUT0_TYPE* boxes,
                                      __global BoxInfo* box_info) {
     size_t candidates_num = 0;
 
-    for (OUTPUT_INDICES_TYPE box_idx = 0; box_idx < num_boxes/*NUM_BOXES*/; ++box_idx) {
+    for (OUTPUT_INDICES_TYPE box_idx = 0; box_idx < num_boxes; ++box_idx) {
 
         #ifdef HAS_ROISNUM
             __global INPUT0_TYPE* score_ptr = scores + class_idx * NUM_BOXES;
@@ -383,8 +346,8 @@ inline OUTPUT_INDICES_TYPE FUNC(multiclass_nms)(const __global INPUT0_TYPE* boxe
             continue;
 
         #ifdef HAS_ROISNUM
-            const __global INPUT0_TYPE* boxes_ptr = boxes/* + class_idx * num_boxes * 4*/;
-            const __global INPUT0_TYPE* scores_ptr = scores/* + class_idx * num_boxes*/;
+            const __global INPUT0_TYPE* boxes_ptr = boxes;
+            const __global INPUT0_TYPE* scores_ptr = scores;
         #else
             const __global INPUT0_TYPE* boxes_ptr = boxes;
             const __global INPUT0_TYPE* scores_ptr = scores + class_idx * num_boxes;
@@ -418,10 +381,6 @@ printf("********** detection_count=%d\n", detection_count);
     }
 */
 
-/*
-    if (KEEP_TOP_K > -1)
-        detection_count = min(detection_count, KEEP_TOP_K);
-*/
 
     if (KEEP_TOP_K > -1 && KEEP_TOP_K < detection_count) {
         detection_count = KEEP_TOP_K;
@@ -429,8 +388,6 @@ printf("********** detection_count=%d\n", detection_count);
 
 
 #if !(SORT_RESULT_ACROSS_BATCH) && (SORT_RESULT_TYPE == SORT_RESULT_CLASSID)
-    //printf("Oops\n");
-    // lexa: still under question
     FUNC_CALL(quickSortIterative)(box_info, 0, detection_count - 1, SORTMODE_CLASS);
 #endif
 
@@ -487,7 +444,6 @@ KERNEL(multiclass_nms_ref)(
                 selected_num[batch_idx] = 0;
                 continue;
             }
-
         #else
             num_boxes = NUM_BOXES;
             boxes_offset = batch_idx * NUM_BOXES * 4;
@@ -524,9 +480,6 @@ KERNEL(multiclass_nms_ref)(
 */
 
         #ifdef HAS_ROISNUM
-            // но єто не точно...
-//            boxes_offset += NUM_CLASSES * num_boxes * 4;
-//            scores_offset += NUM_CLASSES * num_boxes;
             boxes_offset += roisnum[batch_idx] * 4;
             scores_offset += roisnum[batch_idx];
         #endif
@@ -543,9 +496,6 @@ KERNEL(multiclass_nms_ref)(
     }
 */
 
-/*
-    offset += selected_num[NUM_BATCHES - 1];
-*/
 #if SORT_RESULT_ACROSS_BATCH
     #if SORT_RESULT_TYPE == SORT_RESULT_SCORE
         FUNC_CALL(quickSortIterative)(box_info, 0, box_info_offset - 1, SORTMODE_SCORE);
@@ -589,24 +539,15 @@ KERNEL(multiclass_nms_ref)(
 
             #ifdef HAS_ROISNUM
                 uint num_boxes = roisnum[batch_idx];
-                /*if(num_boxes <= 0) { selected_num[batch_idx] = 0; continue; }*/
                 uint offset = 0;
                 for (uint i = 0; i < info->batch_idx; ++i) {
                     offset += roisnum[i];
                 }
-
-//                SelectedIndex(int64_t batch_idx, int64_t box_idx, int64_t num_box)
-//                    : flattened_index(batch_idx * num_box + box_idx) {}
-//                selected_index = {(offset + box_info.index), box_info.class_index, num_classes};
-//                num_classes = static_cast<int64_t>(boxes_data_shape[0]);
-//             selected_index = {(offset + box_info.index), box_info.class_index, num_classes};
-
                 selected_indices_ptr[idx] = (offset + info->index) * NUM_CLASSES + info->class_idx;
 /*
                 printf("OCL selected_indices[idx]=%d idx=%d offset=%d index=%d class_idx=%d batch_idx=%d\n",
                     selected_indices_ptr[idx], idx, offset, info->index, info->class_idx, info->batch_idx);
 */
-
             #else
                 selected_indices_ptr[idx] = info->batch_idx * NUM_BOXES + info->index;
             #endif
@@ -639,28 +580,4 @@ KERNEL(multiclass_nms_ref)(
         printf("\n");
     }
 */
-/*
-    //size_t output_size = min(selected_num[NUM_BATCHES - 1], OUTPUT_DIM);
-//    size_t output_size = offset;
-*/
 }
-
-/*
-
-#else// HAS_ROISNUM
-
-#    define INPUT_INDICES_TYPE INPUT2_TYPE
-
-KERNEL(multiclass_nms_ref)
-(const __global INPUT0_TYPE* boxes,
- const __global INPUT0_TYPE* scores,
- const __global INPUT_INDICES_TYPE* roisnum,
- __global OUTPUT_INDICES_TYPE* selected_indices,
- __global OUTPUT_INDICES_TYPE* selected_num,
- __global OUTPUT_TYPE* selected_outputs) {
-
-#error 3 inputs is not supported at the moment
-}
-
-#endif  // HAS_ROISNUM
-*/
