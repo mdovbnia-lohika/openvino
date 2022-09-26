@@ -41,7 +41,7 @@ const std::vector<bool> sortResDesc = {true, false};
 const std::vector<float> nmsEta = {0.6f, 1.0f};
 const std::vector<bool> normalized = {true, false};
 
-const auto nmsParamsStatic_smoke1 = ::testing::Combine(
+const auto params_v9_2inputs = ::testing::Combine(
     ::testing::ValuesIn(ov::test::static_shapes_to_test_representation(inStaticShapeParams1)),
     ::testing::Combine(::testing::Values(ov::element::f32),
                        ::testing::Values(ov::element::i32),
@@ -57,12 +57,12 @@ const auto nmsParamsStatic_smoke1 = ::testing::Combine(
     ::testing::Values(CommonTestUtils::DEVICE_GPU));
 
 
-INSTANTIATE_TEST_SUITE_P(smoke_MulticlassNmsLayerTest_static1,
+INSTANTIATE_TEST_SUITE_P(smoke_MulticlassNmsLayerTest_v9_2inputs,
                          MulticlassNmsLayerTest,
-                         nmsParamsStatic_smoke1,
+                         params_v9_2inputs,
                          MulticlassNmsLayerTest::getTestCaseName);
 
-const auto nmsParamsStatic_smoke2 = ::testing::Combine(
+const auto params_v9_3inputs = ::testing::Combine(
     ::testing::ValuesIn(ov::test::static_shapes_to_test_representation(inStaticShapeParams2)),
     ::testing::Combine(::testing::Values(ov::element::f32),
                        ::testing::Values(ov::element::i32),
@@ -77,7 +77,28 @@ const auto nmsParamsStatic_smoke2 = ::testing::Combine(
     ::testing::Combine(::testing::ValuesIn(sortResDesc), ::testing::ValuesIn(normalized)),
     ::testing::Values(CommonTestUtils::DEVICE_GPU));
 
-INSTANTIATE_TEST_SUITE_P(smoke_MulticlassNmsLayerTest_static2,
+INSTANTIATE_TEST_SUITE_P(smoke_MulticlassNmsLayerTest_v9_3inputs,
                          MulticlassNmsLayerTest,
-                         nmsParamsStatic_smoke2,
+                         params_v9_3inputs,
                          MulticlassNmsLayerTest::getTestCaseName);
+
+const auto params_v8 = ::testing::Combine(
+    ::testing::ValuesIn(ov::test::static_shapes_to_test_representation(inStaticShapeParams1)),
+    ::testing::Combine(::testing::Values(ov::element::f32),
+                       ::testing::Values(ov::element::i32),
+                       ::testing::Values(ov::element::i32),
+                       ::testing::Values(ov::element::f32)),
+    ::testing::ValuesIn(nmsTopK),
+    ::testing::Combine(::testing::ValuesIn(iouThreshold), ::testing::ValuesIn(scoreThreshold), ::testing::ValuesIn(nmsEta)),
+    ::testing::ValuesIn(backgroundClass),
+    ::testing::ValuesIn(keepTopK),
+    ::testing::ValuesIn(outType),
+    ::testing::ValuesIn(sortResultType),
+    ::testing::Combine(::testing::ValuesIn(sortResDesc), ::testing::ValuesIn(normalized)),
+    ::testing::Values(CommonTestUtils::DEVICE_GPU));
+
+
+INSTANTIATE_TEST_SUITE_P(smoke_MulticlassNmsLayerTest_v8,
+                         MulticlassNmsLayerTest8,
+                         params_v8,
+                         MulticlassNmsLayerTest8::getTestCaseName);
