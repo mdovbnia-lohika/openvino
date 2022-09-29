@@ -234,9 +234,12 @@ inline OUTPUT_INDICES_TYPE FUNC(nms)(const __global INPUT0_TYPE* boxes,
             __global INPUT0_TYPE* box_ptr = boxes;
         #endif
 
-        printf("OCL (nms) pre-score check batch_idx=%d class=%d box_idx=%d box_info=%p candidates_num=%d score=%f (%f, %f, %f, %f)\n",
-               batch_idx, class_idx, box_idx, box_info, candidates_num, score_ptr[box_idx],
+/*
+        printf("OCL (nms) pre-score check batch_idx=%d class=%d box_idx=%d box_info=%p candidates_num=%d "
+               "score_ptr=%p score=%f (%f, %f, %f, %f)\n",
+               batch_idx, class_idx, box_idx, box_info, candidates_num, score_ptr, score_ptr[box_idx],
                box_ptr[4 * box_idx + 0], box_ptr[4 * box_idx + 1], box_ptr[4 * box_idx + 2], box_ptr[4 * box_idx + 3]);
+*/
 
         if (score_ptr[box_idx] < SCORE_THRESHOLD) {
             continue;
@@ -252,9 +255,11 @@ inline OUTPUT_INDICES_TYPE FUNC(nms)(const __global INPUT0_TYPE* boxes,
         candidate_box->xmax = box_ptr[4 * box_idx + 2];
         candidate_box->ymax = box_ptr[4 * box_idx + 3];
 
+/*
         printf("OCL (nms) batch_idx=%d candidate batch=%d class=%d box_idx=%d box_info=%p candidates_num=%d candidate_box=%p score=%f (%f, %f, %f, %f)\n",
                batch_idx, candidate_box->batch_idx, class_idx, box_idx, box_info, candidates_num, candidate_box, score_ptr[box_idx],
                candidate_box->xmin, candidate_box->ymin, candidate_box->xmax, candidate_box->ymax);
+*/
 
         ++candidates_num;
     }
@@ -263,6 +268,7 @@ inline OUTPUT_INDICES_TYPE FUNC(nms)(const __global INPUT0_TYPE* boxes,
         return candidates_num;
     }
 
+/*
     barrier(CLK_GLOBAL_MEM_FENCE);
     if (batch_idx==1) {
         printf("OCL (nms) Before sort batch_idx=%d\n", batch_idx);
@@ -272,6 +278,7 @@ inline OUTPUT_INDICES_TYPE FUNC(nms)(const __global INPUT0_TYPE* boxes,
         }
     }
     barrier(CLK_GLOBAL_MEM_FENCE);
+*/
 
     // sort by score in current class - must be higher score/lower index first (std::greater<BoxInfo> in ref impl.)
     FUNC_CALL(quickSortIterative)(box_info, 0, candidates_num - 1, SORTMODE_SCORE_THEN_INDEX);
@@ -450,21 +457,34 @@ KERNEL(multiclass_nms_ref_stage_0)(
     //***for (uint batch_idx = 0; batch_idx < NUM_BATCHES; ++batch_idx) {
     uint batch_idx = get_global_id(0);
     OUTPUT_INDICES_TYPE box_info_offset = batch_idx * MAX_CANDIDATES_PER_BATCH/*MAX_OUTPUT_BOXES_PER_BATCH*/;
+/*
     uint boxes_offset = 0;
     uint scores_offset = 0;
+    uint num_boxes;
+*/
 
-        uint num_boxes;
         #ifdef HAS_ROISNUM
-            num_boxes = roisnum[batch_idx];
+            const uint num_boxes = roisnum[batch_idx];
             if(num_boxes <= 0) {
                 selected_num[batch_idx] = 0;
                 //***continue;
                 return;
             }
+
+            uint num_previous_boxes = 0;
+            if (batch_idx > 0) {
+                for (uint i = 0; i < batch_idx; ++i) {
+                    num_previous_boxes += roisnum[i];
+                }
+            }
+
+            const uint boxes_offset = num_previous_boxes * 4;
+            const uint scores_offset = num_previous_boxes;
+
         #else
-            num_boxes = NUM_BOXES;
-            boxes_offset = batch_idx * NUM_BOXES * 4;
-            scores_offset = batch_idx * NUM_CLASSES * NUM_BOXES;
+            const uint num_boxes = NUM_BOXES;
+            const uint boxes_offset = batch_idx * NUM_BOXES * 4;
+            const uint scores_offset = batch_idx * NUM_CLASSES * NUM_BOXES;
         #endif
 
         const __global INPUT0_TYPE* boxes_ptr = boxes + boxes_offset;

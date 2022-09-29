@@ -256,10 +256,12 @@ static const std::vector<BoxInfo> nms(const float* boxes_data,
             candidate_boxes.emplace_back(bboxesPtr[box_idx], box_idx, scoresPtr[box_idx], 0, image_idx, class_idx);
         }
 
+/*
         std::cout << "REF (nms) candidate batch="
                   << image_idx << " class=" << class_idx << " box_idx=" << box_idx << " score=" << scoresPtr[box_idx]
                   << "(" << bboxesPtr[box_idx].x1 << ", " << bboxesPtr[box_idx].y1 << ", "
                   << bboxesPtr[box_idx].x2 << ", " << bboxesPtr[box_idx].y2 << ")\n";
+*/
 
     }
 
@@ -276,6 +278,7 @@ static const std::vector<BoxInfo> nms(const float* boxes_data,
         return selected;       // empty
     }
 
+/*
     std::cout << "REF (nms) Before sort batch_idx=" << image_idx << "\n";
     for(const auto& candidate : std::vector<BoxInfo>{candidate_boxes.begin(), candidate_boxes.begin() + candiate_size}) {
         std::cout << "REF score " << candidate.score
@@ -284,6 +287,7 @@ static const std::vector<BoxInfo> nms(const float* boxes_data,
                   << " index " << candidate.index
                   << std::endl;
     }
+*/
 
     // sort by score in current class
     std::partial_sort(candidate_boxes.begin(),
