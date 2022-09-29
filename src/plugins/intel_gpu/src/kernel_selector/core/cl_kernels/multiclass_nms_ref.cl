@@ -26,6 +26,7 @@ typedef struct __attribute__((__packed__)) {
 
 #define BoxInfo FUNC(BOX_INFO)
 
+#if defined(MULTICLASSNMS_STAGE_0) || defined( MULTICLASSNMS_STAGE_1)
 inline void FUNC(swap_info)(__global BoxInfo* a, __global BoxInfo* b) {
     const BoxInfo temp = *a;
     *a = *b;
@@ -194,7 +195,9 @@ inline void FUNC(quickSortIterative)(__global BoxInfo* arr, int l, int h, int so
         }
     }
 }
+#endif
 
+#ifdef MULTICLASSNMS_STAGE_0
 inline INPUT0_TYPE FUNC(intersectionOverUnion)(const __global BoxInfo* i, const __global BoxInfo* j) {
     const INPUT0_TYPE norm = !NORMALIZED;
 
@@ -269,7 +272,6 @@ inline OUTPUT_INDICES_TYPE FUNC(nms)(const __global INPUT0_TYPE* boxes,
     }
 
 /*
-    barrier(CLK_GLOBAL_MEM_FENCE);
     if (batch_idx==1) {
         printf("OCL (nms) Before sort batch_idx=%d\n", batch_idx);
         for (size_t i = 0; i < candidates_num; ++i) {
@@ -277,7 +279,6 @@ inline OUTPUT_INDICES_TYPE FUNC(nms)(const __global INPUT0_TYPE* boxes,
             printf("OCL score %f class_idx %d batch_idx %d index %d\n", next_candidate->score, next_candidate->class_idx, next_candidate->batch_idx, next_candidate->index);
         }
     }
-    barrier(CLK_GLOBAL_MEM_FENCE);
 */
 
     // sort by score in current class - must be higher score/lower index first (std::greater<BoxInfo> in ref impl.)
@@ -303,19 +304,10 @@ inline OUTPUT_INDICES_TYPE FUNC(nms)(const __global INPUT0_TYPE* boxes,
 */
 
     INPUT0_TYPE adaptive_threshold = IOU_THRESHOLD;
-/*
-    printf("OCL after sort\n");
-*/
     size_t selected_size = 0;
     for (size_t i = 0; i < candidates_num; ++i) {
         __global BoxInfo* next_candidate = box_info + i;
 
-/*
-        if (batch_idx == 5 && class_idx == 0) {
-            printf("OCL score %f batch_idx %d class_idx %d index %d\n", next_candidate->score, next_candidate->batch_idx, next_candidate->class_idx,  next_candidate->index);
-        }
-*/
-//        printf("next_candidate.box: %f %f %f %f\n", next_candidate->xmin, next_candidate->ymin, next_candidate->xmax, next_candidate->ymax);
         bool should_hard_suppress = false;
 
         if (NMS_ETA < 1 && adaptive_threshold > 0.5) // FIXME: macro for half
@@ -325,12 +317,8 @@ inline OUTPUT_INDICES_TYPE FUNC(nms)(const __global INPUT0_TYPE* boxes,
             __global BoxInfo* selected = box_info + j;
             float iou = FUNC_CALL(intersectionOverUnion)(box_info + i, box_info + j);
 
-//            printf("next_candidate.box: %f %f %f %f\n", next_candidate->xmin, next_candidate->ymin, next_candidate->xmax, next_candidate->ymax);
-//            printf("selected.box: %f %f %f %f\n", selected->xmin, selected->ymin, selected->xmax, selected->ymax);
-//            printf("  class_idx: %d, i: %d, j: %d, iou: %f\n", class_idx, i, j, iou);
             if (iou >= adaptive_threshold) {
                 should_hard_suppress = true;
-//                printf("OCL should_hard_suppress = true score %f batch_idx %d class_idx %d index %d\n", next_candidate->score, next_candidate->batch_idx, next_candidate->class_idx,  next_candidate->index);
             }
         }
         if (!should_hard_suppress) {
@@ -338,9 +326,6 @@ inline OUTPUT_INDICES_TYPE FUNC(nms)(const __global INPUT0_TYPE* boxes,
             ++selected_size;
         }
     }
-
-
-    //printf("batch_idx %d class_idx %d detection count: %d\n", (int)batch_idx, (int)class_idx, (int)selected_size);
 
     return selected_size;
 }
@@ -419,13 +404,9 @@ inline OUTPUT_INDICES_TYPE FUNC(multiclass_nms)(const __global INPUT0_TYPE* boxe
                box->xmin, box->ymin, box->xmax, box->ymax);
     }
 */
-
-    //printf("batch_idx %d detection count: %d\n", (int)batch_idx, (int)detection_count);
     return detection_count;
 }
 
-
-#ifdef MULTICLASSNMS_STAGE_0
 KERNEL(multiclass_nms_ref_stage_0)(
     const __global INPUT0_TYPE* boxes,
     const __global INPUT1_TYPE* scores,
@@ -434,197 +415,52 @@ KERNEL(multiclass_nms_ref_stage_0)(
 #endif
     __global OUTPUT_INDICES_TYPE* selected_indices,
     __global OUTPUT_INDICES_TYPE* selected_num,
-    __global BoxInfo* box_info, //internal buffer
+    __global BoxInfo* box_info,
     __global OUTPUT_TYPE* selected_outputs) {
 
+    const uint batch_idx = get_global_id(0);
+    const uint box_info_offset = batch_idx * MAX_CANDIDATES_PER_BATCH;
 
-/*
-    printf("scores\n");
-    for(uint z = 0; z < NUM_CLASSES * 100; ++z) {
-        printf("%f ", scores[z]);
-    }
-    printf("\n");
-*/
-/*
-    printf("boxes\n");
-    for(uint z = 0; z < NUM_CLASSES * NUM_BOXES * 4; z += 4) {
-        printf("(%f, %f, %f, %f)\n", boxes[z + 0], boxes[z + 1], boxes[z + 2], boxes[z + 3]);
-    }
-    printf("\n");
-*/
-
-
-    //***for (uint batch_idx = 0; batch_idx < NUM_BATCHES; ++batch_idx) {
-    uint batch_idx = get_global_id(0);
-    OUTPUT_INDICES_TYPE box_info_offset = batch_idx * MAX_CANDIDATES_PER_BATCH/*MAX_OUTPUT_BOXES_PER_BATCH*/;
-/*
-    uint boxes_offset = 0;
-    uint scores_offset = 0;
-    uint num_boxes;
-*/
-
-        #ifdef HAS_ROISNUM
-            const uint num_boxes = roisnum[batch_idx];
-            if(num_boxes <= 0) {
-                selected_num[batch_idx] = 0;
-                //***continue;
-                return;
-            }
-
-            uint num_previous_boxes = 0;
-            if (batch_idx > 0) {
-                for (uint i = 0; i < batch_idx; ++i) {
-                    num_previous_boxes += roisnum[i];
-                }
-            }
-
-            const uint boxes_offset = num_previous_boxes * 4;
-            const uint scores_offset = num_previous_boxes;
-
-        #else
-            const uint num_boxes = NUM_BOXES;
-            const uint boxes_offset = batch_idx * NUM_BOXES * 4;
-            const uint scores_offset = batch_idx * NUM_CLASSES * NUM_BOXES;
-        #endif
-
-        const __global INPUT0_TYPE* boxes_ptr = boxes + boxes_offset;
-        const __global INPUT0_TYPE* scores_ptr = scores + scores_offset;
-/*
-        printf("OCL pre (multiclass_nms) batch_idx=%d box_info_offset=%d\n",
-               batch_idx, box_info_offset);
-        for (uint idx = 0; idx < box_info_offset; ++idx) {
-            const __global BoxInfo* info = box_info + idx;
-            printf("    OCL boxinfo idx=%d index=%d class_idx=%d batch_idx=%d score=%f\n",
-                idx, info->index, info->class_idx, info->batch_idx, info->score);
+    #ifdef HAS_ROISNUM
+        const uint num_boxes = roisnum[batch_idx];
+        if(num_boxes <= 0) {
+            selected_num[batch_idx] = 0;
+            return;
         }
-*/
-//        printf("OCL main batch_idx=%d scores_offset=%d box_info_offset=%d\n", batch_idx, scores_offset, box_info_offset);
-        uint nselected = FUNC_CALL(multiclass_nms)(boxes_ptr, scores_ptr, num_boxes, batch_idx, box_info + box_info_offset);
-        //***box_info_offset += nselected;
 
-        selected_num[batch_idx] = nselected;
-
-/*
-        barrier(CLK_GLOBAL_MEM_FENCE);
-        if(batch_idx==0) {
-            for(uint b=0; b<NUM_BATCHES; ++b) {
-                box_info_offset = b * MAX_CANDIDATES_PER_BATCH;
-                printf("OCL post (multiclass_nms) batch_idx=%d box_info_offset=%d nselected=%d\n",
-                       b, box_info_offset, selected_num[b]);
-                for (uint idx = 0; idx < selected_num[b]; ++idx) {
-                    const __global BoxInfo* info = box_info + box_info_offset + idx;
-                    printf("    OCL boxinfo idx=%d index=%d class_idx=%d batch_idx=%d score=%f\n",
-                        idx, info->index, info->class_idx, info->batch_idx, info->score);
-                }
+        uint num_previous_boxes = 0;
+        if (batch_idx > 0) {
+            for (uint i = 0; i < batch_idx; ++i) {
+                num_previous_boxes += roisnum[i];
             }
         }
-*/
 
+        const uint boxes_offset = num_previous_boxes * 4;
+        const uint scores_offset = num_previous_boxes;
 
+    #else
+        const uint num_boxes = NUM_BOXES;
+        const uint boxes_offset = batch_idx * NUM_BOXES * 4;
+        const uint scores_offset = batch_idx * NUM_CLASSES * NUM_BOXES;
+    #endif
+
+    const __global INPUT0_TYPE* boxes_ptr = boxes + boxes_offset;
+    const __global INPUT0_TYPE* scores_ptr = scores + scores_offset;
+    uint nselected = FUNC_CALL(multiclass_nms)(boxes_ptr, scores_ptr, num_boxes, batch_idx, box_info + box_info_offset);
+    selected_num[batch_idx] = nselected;
 /*
-        printf("OCL PROCESSING post multiclass_nms batch_idx=%d num_boxes=%d nselected=%d\n", batch_idx, num_boxes, nselected);
-*/
-
-        //***#ifdef HAS_ROISNUM
-        //***    boxes_offset += roisnum[batch_idx] * 4;
-        //***    scores_offset += roisnum[batch_idx];
-        //***#endif
-
-    //***}// for - batch_idx
-
-
-/*
-    printf("OCL main before sort box_info_offset=%d\n", box_info_offset);
-    for (uint idx = 0; idx < box_info_offset; ++idx) {
-        const __global BoxInfo* info = box_info + idx;
-        printf("    OCL boxinfo idx=%d index=%d class_idx=%d batch_idx=%d score=%f\n",
-            idx, info->index, info->class_idx, info->batch_idx, info->score);
-    }
-*/
-
-
-//***#if SORT_RESULT_ACROSS_BATCH
-//***    #if SORT_RESULT_TYPE == SORT_RESULT_SCORE
-//***        FUNC_CALL(quickSortIterative)(box_info, 0, box_info_offset - 1, SORTMODE_SCORE);
-//***    #elif SORT_RESULT_TYPE == SORT_RESULT_CLASSID
-//***        FUNC_CALL(quickSortIterative)(box_info, 0, box_info_offset - 1, SORTMODE_CLASS);
-//***    #endif
-//***#endif  // SORT_RESULT_ACROSS_BATCH
-
-/*
-    printf("OCL main after sort box_info_offset=%d\n", box_info_offset);
-    for (uint idx = 0; idx < box_info_offset; ++idx) {
-        const __global BoxInfo* info = box_info + idx;
-        printf("    OCL boxinfo idx=%d index=%d class_idx=%d batch_idx=%d score=%f\n",
-            idx, info->index, info->class_idx, info->batch_idx, info->score);
-    }
-*/
-
-//    // fill outputs
-//    box_info_offset = 0;
-//    for (uint batch_idx = 0; batch_idx < NUM_BATCHES; ++batch_idx) {
-//        __global OUTPUT_TYPE* selected_outputs_ptr = selected_outputs + batch_idx * MAX_OUTPUT_BOXES_PER_BATCH * 6;
-//        __global OUTPUT_INDICES_TYPE* selected_indices_ptr = selected_indices + batch_idx * MAX_OUTPUT_BOXES_PER_BATCH;
-//
-//        uint nselected = selected_num[batch_idx];
-//
-////        printf("OCL fill batch_idx=%d nselected=%d box_info_offset=%d\n", batch_idx, nselected, box_info_offset);
-//
-//        uint idx;
-//        for (idx = 0; idx < nselected; ++idx) {
-//            const __global BoxInfo* info = box_info + box_info_offset + idx;
-//
-////            printf("OCL boxinfo idx=%d index=%d class_idx=%d batch_idx=%d score=%f\n",
-////                idx, info->index, info->class_idx, info->batch_idx, info->score);
-//
-//            selected_outputs_ptr[6 * idx + 0] = (OUTPUT_TYPE)info->class_idx;
-//            selected_outputs_ptr[6 * idx + 1] = info->score;
-//            selected_outputs_ptr[6 * idx + 2] = info->xmin;
-//            selected_outputs_ptr[6 * idx + 3] = info->ymin;
-//            selected_outputs_ptr[6 * idx + 4] = info->xmax;
-//            selected_outputs_ptr[6 * idx + 5] = info->ymax;
-//
-//            #ifdef HAS_ROISNUM
-//                uint num_boxes = roisnum[batch_idx];
-//                uint offset = 0;
-//                for (uint i = 0; i < info->batch_idx; ++i) {
-//                    offset += roisnum[i];
-//                }
-//                selected_indices_ptr[idx] = (offset + info->index) * NUM_CLASSES + info->class_idx;
-///*
-//                printf("OCL selected_indices[idx]=%d idx=%d offset=%d index=%d class_idx=%d batch_idx=%d\n",
-//                    selected_indices_ptr[idx], idx, offset, info->index, info->class_idx, info->batch_idx);
-//*/
-//            #else
-//                selected_indices_ptr[idx] = info->batch_idx * NUM_BOXES + info->index;
-//            #endif
-//
-//            //printf("OCL selected_indices_ptr[%d]=%d\n", idx, selected_indices_ptr[idx]);
-//        }
-//
-////        printf("OCL before tail batch_idx=%d idx=%d nselected=%d\n", batch_idx, idx, nselected);
-//        // tail
-//        for (; idx < MAX_OUTPUT_BOXES_PER_BATCH; ++idx) {
-//            selected_outputs_ptr[6 * idx + 0] = -1;
-//            selected_outputs_ptr[6 * idx + 1] = -1;
-//            selected_outputs_ptr[6 * idx + 2] = -1;
-//            selected_outputs_ptr[6 * idx + 3] = -1;
-//            selected_outputs_ptr[6 * idx + 4] = -1;
-//            selected_outputs_ptr[6 * idx + 5] = -1;
-//
-//            selected_indices_ptr[idx] = -1;
-//        }
-//
-//        box_info_offset += nselected;
-//    }
-
-/*
-    printf("OCL selected_indices:\n");
-    for(uint b=0; b < NUM_BATCHES; ++b) {
-        for(uint z=0; z < MAX_OUTPUT_BOXES_PER_BATCH; ++z) {
-            printf("%d ", selected_indices[b * MAX_OUTPUT_BOXES_PER_BATCH + z]);
+    barrier(CLK_GLOBAL_MEM_FENCE);
+    if(batch_idx==0) {
+        for(uint b=0; b<NUM_BATCHES; ++b) {
+            box_info_offset = b * MAX_CANDIDATES_PER_BATCH;
+            printf("OCL post (multiclass_nms) batch_idx=%d box_info_offset=%d nselected=%d\n",
+                   b, box_info_offset, selected_num[b]);
+            for (uint idx = 0; idx < selected_num[b]; ++idx) {
+                const __global BoxInfo* info = box_info + box_info_offset + idx;
+                printf("    OCL boxinfo idx=%d index=%d class_idx=%d batch_idx=%d score=%f\n",
+                    idx, info->index, info->class_idx, info->batch_idx, info->score);
+            }
         }
-        printf("\n");
     }
 */
 }
@@ -640,14 +476,14 @@ KERNEL(multiclass_nms_ref_stage_1)(
 #endif
     __global OUTPUT_INDICES_TYPE* selected_indices,
     __global OUTPUT_INDICES_TYPE* selected_num,
-    __global BoxInfo* box_info, //internal buffer
+    __global BoxInfo* box_info,
     __global OUTPUT_TYPE* selected_outputs) {
 
     // pack box_infos
     uint dst_offset = selected_num[0];
     for(uint batch_idx = 0; batch_idx < NUM_BATCHES-1; ++batch_idx) {
-        uint boxes_to_copy = selected_num[batch_idx+1];
-        uint src_offset = (batch_idx+1) * MAX_CANDIDATES_PER_BATCH/*MAX_OUTPUT_BOXES_PER_BATCH*/;
+        const uint boxes_to_copy = selected_num[batch_idx+1];
+        const uint src_offset = (batch_idx+1) * MAX_CANDIDATES_PER_BATCH;
 
         for(uint i = 0; i < boxes_to_copy; ++i) {
             box_info[dst_offset + i] = box_info[src_offset + i];
@@ -662,7 +498,7 @@ KERNEL(multiclass_nms_ref_stage_1)(
     #elif SORT_RESULT_TYPE == SORT_RESULT_CLASSID
         FUNC_CALL(quickSortIterative)(box_info, 0, dst_offset - 1, SORTMODE_CLASS);
     #endif
-#endif  // SORT_RESULT_ACROSS_BATCH
+#endif
 }
 #endif //MULTICLASSNMS_STAGE_1
 
@@ -675,77 +511,54 @@ KERNEL(multiclass_nms_ref_stage_2)(
 #endif
     __global OUTPUT_INDICES_TYPE* selected_indices,
     __global OUTPUT_INDICES_TYPE* selected_num,
-    __global BoxInfo* box_info, //internal buffer
+    __global BoxInfo* box_info,
     __global OUTPUT_TYPE* selected_outputs) {
 
     // fill outputs
-    //box_info_offset = 0;
-
     uint batch_idx = get_global_id(0);
-    //for (uint batch_idx = 0; batch_idx < NUM_BATCHES; ++batch_idx) {
-        __global OUTPUT_TYPE* selected_outputs_ptr = selected_outputs + batch_idx * MAX_OUTPUT_BOXES_PER_BATCH * 6;
-        __global OUTPUT_INDICES_TYPE* selected_indices_ptr = selected_indices + batch_idx * MAX_OUTPUT_BOXES_PER_BATCH;
+    __global OUTPUT_TYPE* selected_outputs_ptr = selected_outputs + batch_idx * MAX_OUTPUT_BOXES_PER_BATCH * 6;
+    __global OUTPUT_INDICES_TYPE* selected_indices_ptr = selected_indices + batch_idx * MAX_OUTPUT_BOXES_PER_BATCH;
 
-        uint nselected = selected_num[batch_idx];
+    uint box_info_offset = 0;
+    for (uint i = 0; i < batch_idx; ++i) {
+        box_info_offset += selected_num[i];
+    }
 
-        uint box_info_offset = 0;
-        for (uint i = 0; i < batch_idx; ++i) {
-            box_info_offset += selected_num[i];
-        }
+    const uint nselected = selected_num[batch_idx];
 
-        //printf("OCL fill batch_idx=%d nselected=%d box_info_offset=%d\n", batch_idx, nselected, box_info_offset);
+    uint idx;
+    for (idx = 0; idx < nselected; ++idx) {
+        const __global BoxInfo* info = box_info + box_info_offset + idx;
 
-        uint idx;
-        for (idx = 0; idx < nselected; ++idx) {
-            const __global BoxInfo* info = box_info + box_info_offset + idx;
+        selected_outputs_ptr[6 * idx + 0] = (OUTPUT_TYPE)info->class_idx;
+        selected_outputs_ptr[6 * idx + 1] = info->score;
+        selected_outputs_ptr[6 * idx + 2] = info->xmin;
+        selected_outputs_ptr[6 * idx + 3] = info->ymin;
+        selected_outputs_ptr[6 * idx + 4] = info->xmax;
+        selected_outputs_ptr[6 * idx + 5] = info->ymax;
 
-            selected_outputs_ptr[6 * idx + 0] = (OUTPUT_TYPE)info->class_idx;
-            selected_outputs_ptr[6 * idx + 1] = info->score;
-            selected_outputs_ptr[6 * idx + 2] = info->xmin;
-            selected_outputs_ptr[6 * idx + 3] = info->ymin;
-            selected_outputs_ptr[6 * idx + 4] = info->xmax;
-            selected_outputs_ptr[6 * idx + 5] = info->ymax;
+        #ifdef HAS_ROISNUM
+            const uint num_boxes = roisnum[batch_idx];
+            uint offset = 0;
+            for (uint i = 0; i < info->batch_idx; ++i) {
+                offset += roisnum[i];
+            }
+            selected_indices_ptr[idx] = (offset + info->index) * NUM_CLASSES + info->class_idx;
+        #else
+            selected_indices_ptr[idx] = info->batch_idx * NUM_BOXES + info->index;
+        #endif
+    }
+    // tail
+    for (; idx < MAX_OUTPUT_BOXES_PER_BATCH; ++idx) {
+        selected_outputs_ptr[6 * idx + 0] = -1;
+        selected_outputs_ptr[6 * idx + 1] = -1;
+        selected_outputs_ptr[6 * idx + 2] = -1;
+        selected_outputs_ptr[6 * idx + 3] = -1;
+        selected_outputs_ptr[6 * idx + 4] = -1;
+        selected_outputs_ptr[6 * idx + 5] = -1;
 
-            #ifdef HAS_ROISNUM
-                uint num_boxes = roisnum[batch_idx];
-                uint offset = 0;
-                for (uint i = 0; i < info->batch_idx; ++i) {
-                    offset += roisnum[i];
-                }
-                selected_indices_ptr[idx] = (offset + info->index) * NUM_CLASSES + info->class_idx;
-
-/*
-                printf("OCL selected_indices[idx]=%d batch_idx=%d idx=%d offset=%d index=%d class_idx=%d batch_idx=%d\n",
-                    selected_indices_ptr[idx], batch_idx, idx, offset, info->index, info->class_idx, info->batch_idx);
-*/
-
-            #else
-                selected_indices_ptr[idx] = info->batch_idx * NUM_BOXES + info->index;
-            #endif
-
-/*
-            printf("OCL boxinfo batch_idx=%d selected_indices_ptr[idx]=%d idx=%d box_info_offset=%d index=%d class_idx=%d batch_idx=%d score=%f\n",
-                batch_idx, selected_indices_ptr[idx], idx, box_info_offset, info->index, info->class_idx, info->batch_idx, info->score);
-*/
-
-        }
-
-//        printf("OCL before tail batch_idx=%d idx=%d nselected=%d\n", batch_idx, idx, nselected);
-        // tail
-        for (; idx < MAX_OUTPUT_BOXES_PER_BATCH; ++idx) {
-            selected_outputs_ptr[6 * idx + 0] = -1;
-            selected_outputs_ptr[6 * idx + 1] = -1;
-            selected_outputs_ptr[6 * idx + 2] = -1;
-            selected_outputs_ptr[6 * idx + 3] = -1;
-            selected_outputs_ptr[6 * idx + 4] = -1;
-            selected_outputs_ptr[6 * idx + 5] = -1;
-
-            selected_indices_ptr[idx] = -1;
-        }
-
-        box_info_offset += nselected;
-    //}
-
+        selected_indices_ptr[idx] = -1;
+    }
 /*
     printf("OCL selected_indices:\n");
     for(uint b=0; b < NUM_BATCHES; ++b) {
@@ -757,3 +570,12 @@ KERNEL(multiclass_nms_ref_stage_2)(
 */
 }
 #endif //MULTICLASSNMS_STAGE_2
+
+#undef MAX_CANDIDATES_PER_BATCH
+#undef SORT_RESULT_SCORE
+#undef SORT_RESULT_CLASSID
+#undef SORTMODE_SCORE_THEN_CLASS
+#undef SORTMODE_SCORE_THEN_INDEX
+#undef SORTMODE_SCORE
+#undef SORTMODE_CLASS
+
