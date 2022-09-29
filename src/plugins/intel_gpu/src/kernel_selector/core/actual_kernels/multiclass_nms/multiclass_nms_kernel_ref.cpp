@@ -46,7 +46,7 @@ namespace {
 MulticlassNmsKernelRef::DispatchData SetDefault(const multiclass_nms_params& params, size_t idx) {
     MulticlassNmsKernelRef::DispatchData dispatch_data;
 
-    if (idx == 0/* || idx == 2*/) {
+    if (idx == 0 || idx == 2) {
         const auto num_batches = params.has_roisnum ? params.inputs[2].Batch().v : params.inputs[1].Batch().v;
         dispatch_data.gws = {num_batches, 1, 1};
     } else {

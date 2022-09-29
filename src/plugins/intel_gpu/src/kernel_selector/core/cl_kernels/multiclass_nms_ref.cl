@@ -667,7 +667,7 @@ KERNEL(multiclass_nms_ref_stage_1)(
 #endif //MULTICLASSNMS_STAGE_1
 
 #ifdef MULTICLASSNMS_STAGE_2
-KERNEL(multiclass_nms_ref_stage_1)(
+KERNEL(multiclass_nms_ref_stage_2)(
     const __global INPUT0_TYPE* boxes,
     const __global INPUT1_TYPE* scores,
 #ifdef HAS_ROISNUM
@@ -679,10 +679,10 @@ KERNEL(multiclass_nms_ref_stage_1)(
     __global OUTPUT_TYPE* selected_outputs) {
 
     // fill outputs
-    //***box_info_offset = 0;
+    //box_info_offset = 0;
 
-    //!!!uint batch_idx = get_global_id(0);
-    for (uint batch_idx = 0; batch_idx < NUM_BATCHES; ++batch_idx) {
+    uint batch_idx = get_global_id(0);
+    //for (uint batch_idx = 0; batch_idx < NUM_BATCHES; ++batch_idx) {
         __global OUTPUT_TYPE* selected_outputs_ptr = selected_outputs + batch_idx * MAX_OUTPUT_BOXES_PER_BATCH * 6;
         __global OUTPUT_INDICES_TYPE* selected_indices_ptr = selected_indices + batch_idx * MAX_OUTPUT_BOXES_PER_BATCH;
 
@@ -743,8 +743,8 @@ KERNEL(multiclass_nms_ref_stage_1)(
             selected_indices_ptr[idx] = -1;
         }
 
-        //***box_info_offset += nselected;
-    }
+        box_info_offset += nselected;
+    //}
 
 /*
     printf("OCL selected_indices:\n");
