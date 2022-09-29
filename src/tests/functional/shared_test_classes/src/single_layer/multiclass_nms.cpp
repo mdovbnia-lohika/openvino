@@ -204,7 +204,7 @@ void MulticlassNmsLayerTest::compare(const std::vector<ov::Tensor> &expectedOutp
 
     // reserve order could make sure output 'selected_num' get checked first.
     for (int outputIndex = static_cast<int>(expectedOutputs.size()) - 1; outputIndex >= 0; outputIndex--) {
-        //std::cout << "CMP outputIndex=" << outputIndex << "\n";
+        std::cout << "CMP outputIndex=" << outputIndex << "\n";
         const auto& expected = expectedOutputs[outputIndex];
         const auto& actual = actualOutputs[outputIndex];
         const auto actualBuffer = static_cast<uint8_t*>(actual.data());
