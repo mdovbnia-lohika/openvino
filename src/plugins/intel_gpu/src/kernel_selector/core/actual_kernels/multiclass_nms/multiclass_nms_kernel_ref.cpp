@@ -45,8 +45,15 @@ bool MulticlassNmsKernelRef::Validate(const Params& p, const optional_params& o)
 namespace {
 MulticlassNmsKernelRef::DispatchData SetDefault(const multiclass_nms_params& params, size_t idx) {
     MulticlassNmsKernelRef::DispatchData dispatch_data;
-    dispatch_data.gws = {1, 1, 1};
+
+    if (idx == 0/* || idx == 2*/) {
+        const auto num_batches = params.has_roisnum ? params.inputs[2].Batch().v : params.inputs[1].Batch().v;
+        dispatch_data.gws = {num_batches, 1, 1};
+    } else {
+        dispatch_data.gws = {1, 1, 1};
+    }
     dispatch_data.lws = {1, 1, 1}; /*GetOptimalLocalWorkGroupSizes(dispatch_data.gws, params.engineInfo);*/
+
     return dispatch_data;
 }
 }  // namespace
@@ -83,8 +90,6 @@ JitConstants MulticlassNmsKernelRef::GetJitConstants(const multiclass_nms_params
     if (params.keep_top_k >= 0)
         max_output_boxes_per_batch = std::min<int>(max_output_boxes_per_batch, params.keep_top_k);
 
-    const auto dim = max_output_boxes_per_batch * num_batches;
-
     jit.AddConstants({
         MakeJitConstant("SORT_RESULT_TYPE", static_cast<int>(params.sort_result_type)),
         MakeJitConstant("SORT_RESULT_ACROSS_BATCH", params.sort_result_across_batch),
@@ -102,8 +107,6 @@ JitConstants MulticlassNmsKernelRef::GetJitConstants(const multiclass_nms_params
         MakeJitConstant("NUM_CLASSES", num_classes),
         MakeJitConstant("NUM_BATCHES", num_batches),
 
-        MakeJitConstant("OUTPUT_DIM", dim),
-
         MakeJitConstant("MAX_OUTPUT_BOXES_PER_BATCH", max_output_boxes_per_batch),
     });
 
@@ -119,7 +122,7 @@ KernelsData MulticlassNmsKernelRef::GetKernelsData(const Params& params, const o
         return {};
     }
 
-    constexpr size_t kKernelsNum = 1;  // FIXME opoluektov
+    constexpr size_t kKernelsNum = 3;  // FIXME opoluektov
     KernelData kd = KernelData::Default<multiclass_nms_params>(params, kKernelsNum);
     const auto& op_params = static_cast<const multiclass_nms_params&>(params);
 
@@ -136,13 +139,13 @@ KernelsData MulticlassNmsKernelRef::GetKernelsData(const Params& params, const o
     const auto box_size = (4 + 1) * sizeof(double) + 3 * sizeof(long); // 5: coordinates + score; 3: class_idx, batch_idx, index
     const auto total_boxes = num_batches * num_classes * num_boxes;
     kd.internalBufferSizes[0] = box_size * total_boxes;
+    const auto common_jit_constants = GetJitConstants(op_params);
 
     for (size_t i = 0; i < kKernelsNum; ++i) {
         const auto dispatch_data = SetDefault(op_params, i);
         const auto entry_point = GetEntryPoint(kernelName, op_params.layerID, params, options, i);
-        auto cldnn_jit = GetJitConstants(op_params);
-
-        //cldnn_jit.AddConstant(MakeJitConstant("MULTICLASSNMS_STAGE_" + std::to_string(i), "true"));
+        auto cldnn_jit = common_jit_constants;
+        cldnn_jit.AddConstant(MakeJitConstant("MULTICLASSNMS_STAGE_" + std::to_string(i), "true"));
 
         const auto jit = CreateJit(kernelName, cldnn_jit, entry_point);
         KernelBase::CheckDispatchData(kernelName, dispatch_data, params.engineInfo.maxWorkGroupSize);
