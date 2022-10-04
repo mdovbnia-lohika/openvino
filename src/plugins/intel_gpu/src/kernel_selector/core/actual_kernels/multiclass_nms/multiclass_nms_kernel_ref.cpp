@@ -22,10 +22,13 @@ ParamsKey MulticlassNmsKernelRef::GetSupportedKey() const {
     k.EnableOutputDataType(Datatype::F32);
     k.EnableOutputDataType(Datatype::INT32);
     k.EnableOutputDataType(Datatype::INT64);
-    k.EnableInputLayout(DataLayout::bfyx);
-    k.EnableOutputLayout(DataLayout::bfyx);
+    k.EnableAllInputLayout();
+    k.EnableAllOutputLayout();
+
     k.EnableBatching();
     k.EnableDifferentTypes();
+    k.EnableTensorPitches();
+
     return k;
 }
 

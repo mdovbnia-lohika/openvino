@@ -100,11 +100,17 @@ public:
 
 namespace detail {
 attach_multiclass_nms_impl::attach_multiclass_nms_impl() {
-    implementation_map<multiclass_nms>::add(
-        impl_types::ocl,
-        multiclass_nms_impl::create,
-        // TODO check formats/datatypes
-        {std::make_tuple(data_types::f16, format::bfyx), std::make_tuple(data_types::f32, format::bfyx)});
+    auto types = {data_types::f16, data_types::f32, data_types::i32, data_types::i64};
+    auto formats = {
+        format::bfyx,
+        format::b_fs_yx_fsv16,
+        format::b_fs_yx_fsv32,
+        format::bs_fs_yx_bsv16_fsv16,
+        format::bs_fs_yx_bsv32_fsv16,
+        format::bs_fs_yx_bsv32_fsv32,
+    };
+
+    implementation_map<multiclass_nms>::add(impl_types::ocl, multiclass_nms_impl::create, types, formats);
 }
 }  // namespace detail
 }  // namespace ocl
