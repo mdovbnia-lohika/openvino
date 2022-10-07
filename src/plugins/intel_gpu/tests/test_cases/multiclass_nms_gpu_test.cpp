@@ -1081,8 +1081,10 @@ INSTANTIATE_MULTICLASS_NMS_TEST_SUITE(FLOAT16, int32_t, getMulticlass_keep_post_
  INSTANTIATE_MULTICLASS_NMS_TEST_SUITE(float, int32_t, getMulticlass_nms_three_inputs_blocked_layout)
  INSTANTIATE_MULTICLASS_NMS_TEST_SUITE(FLOAT16, int32_t, getMulticlass_nms_three_inputs_blocked_layout)
  INSTANTIATE_MULTICLASS_NMS_TEST_SUITE(half_t, int32_t, getMulticlass_nms_three_inputs_blocked_layout)
-
-INSTANTIATE_MULTICLASS_NMS_TEST_SUITE(float, int32_t, getMulticlass_keep_three_inputs)
+/*
+   * not sure, if inputs for this test case, set properly
+*/
+ INSTANTIATE_MULTICLASS_NMS_TEST_SUITE(float, int32_t, getMulticlass_keep_three_inputs)
 INSTANTIATE_MULTICLASS_NMS_TEST_SUITE(FLOAT16, int32_t, getMulticlass_keep_three_inputs)
 INSTANTIATE_MULTICLASS_NMS_TEST_SUITE(half_t, int32_t, getMulticlass_keep_three_inputs)
 
