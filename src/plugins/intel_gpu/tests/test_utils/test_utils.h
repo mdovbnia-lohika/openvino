@@ -693,4 +693,9 @@ double default_tolerance(data_types dt);
 //     }
 // }
 
+template <typename T>
+std::vector<T> convert(const std::vector<float>& values) {
+    return {values.begin(), values.end()};
+}
+
 } // namespace tests
