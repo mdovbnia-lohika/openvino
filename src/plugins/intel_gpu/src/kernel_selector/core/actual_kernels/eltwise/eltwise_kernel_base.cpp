@@ -559,6 +559,25 @@ JitConstants EltwiseKernelBase::GetJitConstants(const eltwise_params& params) co
 EltwiseKernelBase::DispatchData EltwiseKernelBase::SetDefault(const eltwise_params& params) const {
     DispatchData dispatchData;
 
+//    dispatchData.gws[0] = 2500;
+//    dispatchData.gws[1] = 32;
+//    dispatchData.gws[2] = 32;
+//
+//    dispatchData.lws[0] = 1;
+//    dispatchData.lws[1] = 16;
+//    dispatchData.lws[2] = 32;
+//
+//    std::cout << "GWS:" << std::endl;
+//    for (auto& n : dispatchData.gws) {
+//        std::cout << n << std::endl;
+//    }
+//    std::cout << "LWS:" << std::endl;
+//    for (auto& n : dispatchData.lws) {
+//        std::cout << n << std::endl;
+//    }
+//
+//    return dispatchData;
+
     if (params.layoutBased || params.int8_quantization || params.broadcast) {
         dispatchData.gws = GetTensorFriendlyWorkGroups(params.outputs[0]);
     } else if (CheckInputsOutputNoPitchSameDims(params)) {
@@ -645,7 +664,14 @@ EltwiseKernelBase::DispatchData EltwiseKernelBase::SetDefault(const eltwise_para
         dispatchData.lws[1] = local[1];
         dispatchData.lws[2] = local[2];
     }
-
+    std::cout << "GWS:" << std::endl;
+    for (auto& n : dispatchData.gws) {
+        std::cout << n << std::endl;
+    }
+    std::cout << "LWS:" << std::endl;
+    for (auto& n : dispatchData.lws) {
+        std::cout << n << std::endl;
+    }
     return dispatchData;
 }
 

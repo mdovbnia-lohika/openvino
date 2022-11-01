@@ -1420,3 +1420,197 @@ TEST(crop_gpu, dynamic_in1x4x1x1_varaidic_split) {
     for (size_t i = 0; i < out2.size(); i++)
         EXPECT_EQ(output_ptr_2[i], out2[i]);
 }
+
+
+struct crop_random_test_params {
+    data_types data_type;
+    int batch_num;
+    int feature_num;
+    int x_size;
+    int y_size;
+    tensor input;
+    format::type in_format;
+    tensor output;
+    format::type output_format;
+};
+
+struct crop_random_test : testing::TestWithParam<crop_random_test_params> {
+
+    static double get_exectime(const std::map<cldnn::primitive_id, cldnn::network_output>& outputs,
+                               const std::string& primitive_id) {
+        using namespace std::chrono;
+        std::shared_ptr<event> e = outputs.at(primitive_id).get_event();
+        e->wait();  // should ensure execution completion, if not segfault will occur
+        double avg_time = 0.0;
+        auto intervals = e->get_profiling_info();
+        for (const auto& q : intervals) {
+            if (q.stage != instrumentation::profiling_stage::executing) {
+                continue;
+            }
+            avg_time = duration_cast<duration<double, microseconds::period>>(q.value->value()).count();
+            break;
+        }
+        return avg_time;
+    }
+
+    static void print_all_perf(std::map<primitive_id, network_output>& outputs) {
+        std::cout << "Print last run time" << std::endl;
+        using namespace std::chrono;
+        for (const auto& n : outputs) {
+            std::shared_ptr<event> e = n.second.get_event();
+            auto intervals = e->get_profiling_info();
+            double time = 0.0;
+            for (const auto& q : intervals) {
+                if (q.stage != instrumentation::profiling_stage::executing) {
+                    continue;
+                }
+                time = duration_cast<duration<double, microseconds::period>>(q.value->value()).count();
+                break;
+            }
+            std::cout << n.first << ":" << time << std::endl;
+        }
+        std::cout << std::endl;
+    }
+
+    cldnn::engine_configuration get_profiling_config() {
+        // const bool enable_profiling = true;
+        std::string sources_dumps_dir = "";
+        cldnn::queue_types queue_type = cldnn::queue_types::out_of_order;
+        priority_mode_types priority_mode = priority_mode_types::disabled;
+        throttle_mode_types throttle_mode = throttle_mode_types::disabled;
+        bool use_memory_pool = true;
+        bool use_unified_shared_memory = true;
+        return engine_configuration(true,
+                                    queue_type,
+                                    sources_dumps_dir,
+                                    priority_mode,
+                                    throttle_mode,
+                                    use_memory_pool,
+                                    use_unified_shared_memory);
+    }
+
+    template <typename T>
+    void fill_random_typed(memory::ptr mem, int min, int max, int k) {
+        auto l = mem->get_layout();
+        size_t b = l.batch();
+        size_t f = l.feature();
+        size_t x = l.spatial(0);
+        size_t y = l.spatial(1);
+    }
+
+    void fill_random(memory::ptr mem) {
+        auto dt = mem->get_layout().data_type;
+        switch (dt) {
+        case data_types::f32:
+            fill_random_typed<float>(mem, -127, 127, 2);
+            break;
+        case data_types::f16:
+            fill_random_typed<FLOAT16>(mem, -127, 127, 2);
+            break;
+        case data_types::i8:
+            fill_random_typed<int8_t>(mem, -127, 127, 1);
+            break;
+        case data_types::u8:
+            fill_random_typed<uint8_t>(mem, 0, 255, 1);
+            break;
+        default:
+            break;
+        }
+    }
+
+    void execute_perf_test(const crop_random_test_params& params,
+                           const std::string& kernel,
+                           const bool do_plain = false) {
+
+        auto crop_batch_num = 32;
+        auto crop_feature_num_1 = 32;
+        auto crop_x_size = 50;
+        auto crop_y_size = 50;
+        auto feature_offset_1 = crop_feature_num_1;
+
+        auto& engine = get_test_engine(get_profiling_config());
+
+        const format fmt_origin = format::bfyx;
+        const format working_format = do_plain ? fmt_origin : format(params.in_format);
+
+        auto in_layout = layout(params.data_type, fmt_origin, params.input);
+        auto input = engine.allocate_memory(in_layout);
+//        auto axis_mem = engine.allocate_memory({ {}, data_types::i64, fmt_origin});
+//        auto splits_length_mem = engine.allocate_memory({ {2}, data_types::i64, fmt_origin });
+
+        fill_random(input);
+
+        cldnn::crop_ngraph_op_mode op_mode = cldnn::crop_ngraph_op_mode::variadic_split;
+        topology topology;
+        topology.add(input_layout("input", input->get_layout()));
+        topology.add(reorder("reorder_input", "input", working_format, params.data_type));
+        auto prim_opt = crop("crop1", "reorder_input", params.output, tensor(feature(feature_offset_1), spatial(0,0),batch(0)));
+        topology.add(prim_opt);
+        topology.add(reorder("crop_out", "crop1", fmt_origin, params.data_type));
+
+        auto build_opts_opt = build_options();
+        build_opts_opt.set_option(build_option::outputs({"crop1"}));
+        build_opts_opt.set_option(build_option::force_implementations({{"crop1", {working_format, kernel}}}));
+        build_opts_opt.set_option(build_option::debug(true));
+
+        network network(engine, topology, build_opts_opt);
+        network.set_input_data("input", input);
+        network.get_program();
+
+        std::map<primitive_id, network_output> result_opt;
+        auto r = 100;
+        double exectime = 0.f;
+        for (int i = 0; i < r; ++i) {
+            result_opt = network.execute();
+            exectime += get_exectime(result_opt, "crop1");
+        }
+
+
+        exectime /= r;
+        std::string frm_str = format(working_format).to_string();
+        std::string input_type = data_type_traits::name(params.data_type);
+        std::string is_opt = do_plain ? " not optimazed " : " optimized ";
+
+
+        std::cout << "Executed time " << is_opt << " " << kernel << " "
+                  << " input_first(" << params.input.to_string() << ")"
+                  << " input_second(" << params.output.to_string() << ")" << frm_str << " " << input_type
+                  << " " << exectime << std::endl;
+//        std::string mode;
+
+//        auto outputs = network.execute();
+//
+//        auto output = outputs.at("crop").get_memory();
+//        cldnn::mem_lock<float> output_ptr(output, get_test_stream());
+
+    }
+};
+
+TEST_P(crop_random_test, random) {
+    auto param = GetParam();
+    execute_perf_test(param, "generic_eltwise_ref");
+   // execute_perf_test(param, "generic_eltwise_ref");
+}
+
+//INSTANTIATE_TEST_SUITE_P(
+//    crop_random_test_fsv32,
+//    crop_random_test,
+//        testing::Values(data_types::f32),
+//        testing::Values(1),
+//        testing::Values(1),
+//        testing::Values(1),
+//        testing::Values(1),
+//        testing::Values(std::vector<FLOAT16>{32,32,50,50}),
+//        testing::Values(format::bs_fs_yx_bsv32_fsv32),
+//        testing::Values(std::vector<FLOAT16>{32,32,50,50}),
+//        testing::Values(format::bs_fs_yx_bsv32_fsv32));
+
+INSTANTIATE_TEST_SUITE_P(
+    crop_random_test_fsv32,
+    crop_random_test,
+    testing::Values(
+        crop_random_test_params{data_types::f16, 1, 4, 1, 1, {32, 64, 64, 64}, format::bs_fs_yx_bsv32_fsv16, {32, 32, 64, 64},
+                                format::bs_fs_yx_bsv32_fsv16}
+//        crop_random_test_params{data_types::f16, 1, 4, 1, 1, {64, 64, 50, 50}, format::bs_fs_yx_bsv32_fsv16, {32, 32, 50, 50},
+//                                format::bs_fs_yx_bsv32_fsv16}
+        ));

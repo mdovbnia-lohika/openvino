@@ -3994,7 +3994,7 @@ struct eltwise_random_test_ext : eltwise_random_test {
         double avg_time = 0.0;
         auto intervals = e->get_profiling_info();
         for (const auto& q : intervals) {
-            if (q.stage == instrumentation::profiling_stage::executing) {
+            if (q.stage != instrumentation::profiling_stage::executing) {
                 continue;
             }
             avg_time = duration_cast<duration<double, microseconds::period>>(q.value->value()).count();
@@ -4011,7 +4011,7 @@ struct eltwise_random_test_ext : eltwise_random_test {
             auto intervals = e->get_profiling_info();
             double time = 0.0;
             for (const auto& q : intervals) {
-                if (q.stage == instrumentation::profiling_stage::executing) {
+                if (q.stage != instrumentation::profiling_stage::executing) {
                     continue;
                 }
                 time = duration_cast<duration<double, microseconds::period>>(q.value->value()).count();
@@ -4170,26 +4170,26 @@ struct eltwise_random_test_param_generator : std::vector<eltwise_random_test_par
                                                        format::type input_format,
                                                        format::type output_format) {
         push_back(eltwise_random_test_params{type,
-                                             {1, 10, 10, 10},
-                                             {1, 10, 10, 10},
+                                             {32, 32, 50, 50},
+                                             {32, 32, 50, 50},
                                              input_format,
                                              input_format,
                                              output_format,
                                              eltwise_mode::sum});
-        push_back(eltwise_random_test_params{type,
-                                             {1, 5, 4, 4},
-                                             {1, 5, 4, 4},
-                                             input_format,
-                                             input_format,
-                                             output_format,
-                                             eltwise_mode::sum});
-        push_back(eltwise_random_test_params{type,
-                                             {1, 20, 16, 16},
-                                             {1, 20, 16, 16},
-                                             input_format,
-                                             input_format,
-                                             output_format,
-                                             eltwise_mode::sum});
+//        push_back(eltwise_random_test_params{type,
+//                                             {1, 5, 4, 4},
+//                                             {1, 5, 4, 4},
+//                                             input_format,
+//                                             input_format,
+//                                             output_format,
+//                                             eltwise_mode::sum});
+//        push_back(eltwise_random_test_params{type,
+//                                             {1, 20, 16, 16},
+//                                             {1, 20, 16, 16},
+//                                             input_format,
+//                                             input_format,
+//                                             output_format,
+//                                             eltwise_mode::sum});
         return *this;
     }
 };
@@ -4207,73 +4207,73 @@ using eltwiseeltwise_random_test_mixed_byxf_and_fsv32 = eltwise_random_test_ext;
 TEST_P(eltwiseeltwise_random_test_ext_fsv4, random) {
     auto param = GetParam();
     execute_perf_test(param, "generic_eltwise_ref");
-    execute_perf_test(param, "eltwise_b_fs_yx_fsv4");
+//    execute_perf_test(param, "eltwise_b_fs_yx_fsv4");
 }
-TEST_P(eltwiseeltwise_random_test_ext_fsv16, random) {
-    auto param = GetParam();
-    execute_perf_test(param, "generic_eltwise_ref");
-    execute_perf_test(param, "eltwise_b_fs_yx_fsv16");
-}
+//TEST_P(eltwiseeltwise_random_test_ext_fsv16, random) {
+//    auto param = GetParam();
+//    execute_perf_test(param, "generic_eltwise_ref");
+//    execute_perf_test(param, "eltwise_b_fs_yx_fsv16");
+//}
+//
+//TEST_P(eltwiseeltwise_random_test_ext_fsv32, random) {
+//    auto param = GetParam();
+//    execute_perf_test(param, "generic_eltwise_ref");
+//    execute_perf_test(param, "eltwise_fs_b_yx_fsv32");
+//}
+//
+//TEST_P(eltwiseeltwise_random_test_mixed_byxf_and_fsv32, random) {
+//    auto param = GetParam();
+//    execute_perf_test(param, "generic_eltwise_ref");
+//    execute_perf_test(param, "eltwise_mixed_byxf_and_fs_b_yx_fsv32");
+//}
 
-TEST_P(eltwiseeltwise_random_test_ext_fsv32, random) {
-    auto param = GetParam();
-    execute_perf_test(param, "generic_eltwise_ref");
-    execute_perf_test(param, "eltwise_fs_b_yx_fsv32");
-}
-
-TEST_P(eltwiseeltwise_random_test_mixed_byxf_and_fsv32, random) {
-    auto param = GetParam();
-    execute_perf_test(param, "generic_eltwise_ref");
-    execute_perf_test(param, "eltwise_mixed_byxf_and_fs_b_yx_fsv32");
-}
-
-INSTANTIATE_TEST_SUITE_P(
-    eltwise_smoke_fsv4,
-    eltwise_random_test,
-    testing::ValuesIn(eltwise_random_test_param_generator()
-                          .broadcast_params(data_types::f32, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
-                          .broadcast_params(data_types::f16, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
-                          .broadcast_params(data_types::i8, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
-                          .broadcast_params(data_types::u8, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
-                          .simple_params(data_types::f32, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
-                          .simple_params(data_types::f16, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
-                          .simple_params(data_types::i8, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
-                          .simple_params(data_types::u8, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
-                      ));
-
+//INSTANTIATE_TEST_SUITE_P(
+//    eltwise_smoke_fsv4,
+//    eltwiseeltwise_random_test_ext_fsv4
+//    testing::ValuesIn(eltwise_random_test_param_generator()
+////                          .broadcast_params(data_types::f32, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
+////                          .broadcast_params(data_types::f16, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
+////                          .broadcast_params(data_types::i8, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
+////                          .broadcast_params(data_types::u8, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
+////                          .simple_params(data_types::f32, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
+//                          .simple_params(data_types::f16, format::format::bs_fs_yx_bsv32_fsv16, format::bs_fs_yx_bsv32_fsv16)
+////                          .simple_params(data_types::i8, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
+////                          .simple_params(data_types::u8, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
+//                      ));
+//
  INSTANTIATE_TEST_SUITE_P(eltwise_smoke_fsv4_sum,
                           eltwiseeltwise_random_test_ext_fsv4,
                           testing::ValuesIn(
                               eltwise_random_test_param_generator()
-                                  .broadcast_params(data_types::f32, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
-                                  .broadcast_params(data_types::i8, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
-                                  .broadcast_params(data_types::u8, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
-                                  .simple_params(data_types::f32, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
-                                  .simple_params(data_types::i8, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
-                                  .simple_params(data_types::u8, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
+//                                  .broadcast_params(data_types::f32, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
+//                                  .broadcast_params(data_types::i8, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
+//                                  .broadcast_params(data_types::u8, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
+                                  .simple_params(data_types::f16, format::format::bs_fs_yx_bsv32_fsv16, format::format::bs_fs_yx_bsv32_fsv16)
+//                                  .simple_params(data_types::i8, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
+//                                  .simple_params(data_types::u8, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
                                   ));
-
- INSTANTIATE_TEST_SUITE_P(eltwise_smoke_fsv16_sum,
-                          eltwiseeltwise_random_test_ext_fsv16,
-                          testing::ValuesIn(
-                              eltwise_random_test_param_generator()
-                                  .broadcast_params(data_types::f32, format::b_fs_yx_fsv16, format::b_fs_yx_fsv16)
-                                  .broadcast_params(data_types::f16, format::b_fs_yx_fsv16, format::b_fs_yx_fsv16)
-                                  .broadcast_params(data_types::i8, format::b_fs_yx_fsv16, format::b_fs_yx_fsv16)
-                                  .broadcast_params(data_types::u8, format::b_fs_yx_fsv16, format::b_fs_yx_fsv16)
-                                  .simple_params(data_types::f32, format::b_fs_yx_fsv16, format::b_fs_yx_fsv16)
-                                  .simple_params(data_types::f16, format::b_fs_yx_fsv16, format::b_fs_yx_fsv16)
-                                  .simple_params(data_types::i8, format::b_fs_yx_fsv16, format::b_fs_yx_fsv16)
-                                  .simple_params(data_types::u8, format::b_fs_yx_fsv16, format::b_fs_yx_fsv16)
-                                  ));
-
- INSTANTIATE_TEST_SUITE_P(eltwise_smoke_fsv32_sum,
-                          eltwiseeltwise_random_test_ext_fsv32,
-                          testing::ValuesIn(
-                              eltwise_random_test_param_generator()
-                                  .simple_params(data_types::f16, format::fs_b_yx_fsv32, format::fs_b_yx_fsv32)
-                                  ));
-
+//
+// INSTANTIATE_TEST_SUITE_P(eltwise_smoke_fsv16_sum,
+//                          eltwiseeltwise_random_test_ext_fsv16,
+//                          testing::ValuesIn(
+//                              eltwise_random_test_param_generator()
+//                                  .broadcast_params(data_types::f32, format::b_fs_yx_fsv16, format::  b_fs_yx_fsv16)
+//                                  .broadcast_params(data_types::f16, format::b_fs_yx_fsv16, format::b_fs_yx_fsv16)
+//                                  .broadcast_params(data_types::i8, format::b_fs_yx_fsv16, format::b_fs_yx_fsv16)
+//                                  .broadcast_params(data_types::u8, format::b_fs_yx_fsv16, format::b_fs_yx_fsv16)
+//                                  .simple_params(data_types::f32, format::b_fs_yx_fsv16, format::b_fs_yx_fsv16)
+//                                  .simple_params(data_types::f16, format::b_fs_yx_fsv16, format::b_fs_yx_fsv16)
+//                                  .simple_params(data_types::i8, format::b_fs_yx_fsv16, format::b_fs_yx_fsv16)
+//                                  .simple_params(data_types::u8, format::b_fs_yx_fsv16, format::b_fs_yx_fsv16)
+//                                  ));
+//
+// INSTANTIATE_TEST_SUITE_P(eltwise_smoke_fsv32_sum,
+//                          eltwiseeltwise_random_test_ext_fsv32,
+//                          testing::ValuesIn(
+//                              eltwise_random_test_param_generator()
+//                                  .simple_params(data_types::f16, format::fs_b_yx_fsv32, format::fs_b_yx_fsv32)
+//                                  ));
+//
 
  //not working
 // INSTANTIATE_TEST_SUITE_P(eltwise_smoke_mixed_byxf_and_fsv32,
