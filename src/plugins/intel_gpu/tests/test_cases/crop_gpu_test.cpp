@@ -1524,9 +1524,9 @@ struct crop_random_test : testing::TestWithParam<crop_random_test_params> {
 
         auto crop_batch_num = 32;
         auto crop_feature_num_1 = 32;
-        auto crop_x_size = 50;
-        auto crop_y_size = 50;
-        auto feature_offset_1 = crop_feature_num_1;
+        auto crop_x_size = 64;
+        auto crop_y_size = 64;
+        auto feature_offset_1 = 0;
 
         auto& engine = get_test_engine(get_profiling_config());
 
@@ -1535,22 +1535,28 @@ struct crop_random_test : testing::TestWithParam<crop_random_test_params> {
 
         auto in_layout = layout(params.data_type, fmt_origin, params.input);
         auto input = engine.allocate_memory(in_layout);
-//        auto axis_mem = engine.allocate_memory({ {}, data_types::i64, fmt_origin});
-//        auto splits_length_mem = engine.allocate_memory({ {2}, data_types::i64, fmt_origin });
+        auto axis_mem = engine.allocate_memory({ {}, data_types::i64, fmt_origin});
+        auto splits_length_mem = engine.allocate_memory({ {2}, data_types::i64, fmt_origin });
 
         fill_random(input);
 
         cldnn::crop_ngraph_op_mode op_mode = cldnn::crop_ngraph_op_mode::variadic_split;
         topology topology;
+
         topology.add(input_layout("input", input->get_layout()));
         topology.add(reorder("reorder_input", "input", working_format, params.data_type));
-        auto prim_opt = crop("crop1", "reorder_input", params.output, tensor(feature(feature_offset_1), spatial(0,0),batch(0)));
-        topology.add(prim_opt);
-        topology.add(reorder("crop_out", "crop1", fmt_origin, params.data_type));
+        topology.add(data("axis", axis_mem));
+        topology.add(data("splits_length", splits_length_mem));
+        topology.add(crop("crop", {"reorder_input", "axis", "splits_length"}, tensor(batch(crop_batch_num), spatial(crop_x_size, crop_y_size), feature(crop_feature_num_1)), { tensor(feature(feature_offset_1), spatial(0,0),batch(0)) }, op_mode, 0));
+        topology.add(reorder("crop_out", "crop", fmt_origin, params.data_type));
+
+        set_values(axis_mem, {1});
+        std::vector<int64_t> splits_vec = {-1, 2};
+        set_values(splits_length_mem, splits_vec);
 
         auto build_opts_opt = build_options();
-        build_opts_opt.set_option(build_option::outputs({"crop1"}));
-        build_opts_opt.set_option(build_option::force_implementations({{"crop1", {working_format, kernel}}}));
+        build_opts_opt.set_option(build_option::outputs({"crop_out"}));
+        build_opts_opt.set_option(build_option::force_implementations({{{"crop"}, {working_format, kernel}}}));
         build_opts_opt.set_option(build_option::debug(true));
 
         network network(engine, topology, build_opts_opt);
@@ -1562,9 +1568,8 @@ struct crop_random_test : testing::TestWithParam<crop_random_test_params> {
         double exectime = 0.f;
         for (int i = 0; i < r; ++i) {
             result_opt = network.execute();
-            exectime += get_exectime(result_opt, "crop1");
+            exectime += get_exectime(result_opt, {"crop"});
         }
-
 
         exectime /= r;
         std::string frm_str = format(working_format).to_string();
@@ -1576,34 +1581,14 @@ struct crop_random_test : testing::TestWithParam<crop_random_test_params> {
                   << " input_first(" << params.input.to_string() << ")"
                   << " input_second(" << params.output.to_string() << ")" << frm_str << " " << input_type
                   << " " << exectime << std::endl;
-//        std::string mode;
-
-//        auto outputs = network.execute();
-//
-//        auto output = outputs.at("crop").get_memory();
-//        cldnn::mem_lock<float> output_ptr(output, get_test_stream());
-
     }
 };
 
 TEST_P(crop_random_test, random) {
     auto param = GetParam();
     execute_perf_test(param, "generic_eltwise_ref");
-   // execute_perf_test(param, "generic_eltwise_ref");
+    execute_perf_test(param, "generic_eltwise_ref", true);
 }
-
-//INSTANTIATE_TEST_SUITE_P(
-//    crop_random_test_fsv32,
-//    crop_random_test,
-//        testing::Values(data_types::f32),
-//        testing::Values(1),
-//        testing::Values(1),
-//        testing::Values(1),
-//        testing::Values(1),
-//        testing::Values(std::vector<FLOAT16>{32,32,50,50}),
-//        testing::Values(format::bs_fs_yx_bsv32_fsv32),
-//        testing::Values(std::vector<FLOAT16>{32,32,50,50}),
-//        testing::Values(format::bs_fs_yx_bsv32_fsv32));
 
 INSTANTIATE_TEST_SUITE_P(
     crop_random_test_fsv32,
@@ -1611,6 +1596,4 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Values(
         crop_random_test_params{data_types::f16, 1, 4, 1, 1, {32, 64, 64, 64}, format::bs_fs_yx_bsv32_fsv16, {32, 32, 64, 64},
                                 format::bs_fs_yx_bsv32_fsv16}
-//        crop_random_test_params{data_types::f16, 1, 4, 1, 1, {64, 64, 50, 50}, format::bs_fs_yx_bsv32_fsv16, {32, 32, 50, 50},
-//                                format::bs_fs_yx_bsv32_fsv16}
         ));

@@ -559,25 +559,6 @@ JitConstants EltwiseKernelBase::GetJitConstants(const eltwise_params& params) co
 EltwiseKernelBase::DispatchData EltwiseKernelBase::SetDefault(const eltwise_params& params) const {
     DispatchData dispatchData;
 
-//    dispatchData.gws[0] = 2500;
-//    dispatchData.gws[1] = 32;
-//    dispatchData.gws[2] = 32;
-//
-//    dispatchData.lws[0] = 1;
-//    dispatchData.lws[1] = 16;
-//    dispatchData.lws[2] = 32;
-//
-//    std::cout << "GWS:" << std::endl;
-//    for (auto& n : dispatchData.gws) {
-//        std::cout << n << std::endl;
-//    }
-//    std::cout << "LWS:" << std::endl;
-//    for (auto& n : dispatchData.lws) {
-//        std::cout << n << std::endl;
-//    }
-//
-//    return dispatchData;
-
     if (params.layoutBased || params.int8_quantization || params.broadcast) {
         dispatchData.gws = GetTensorFriendlyWorkGroups(params.outputs[0]);
     } else if (CheckInputsOutputNoPitchSameDims(params)) {
@@ -615,11 +596,30 @@ EltwiseKernelBase::DispatchData EltwiseKernelBase::SetDefault(const eltwise_para
     // TODO: can be potentially improved for GPUs with support of LWS > 256
     const size_t optimal_lws_values[] = { 256, 224, 192, 160, 128, 96, 64, 32, 16 };
 
-    if ((params.outputs[0].GetLayout() == DataLayout::b_fs_yx_fsv16 ||
-         params.outputs[0].GetLayout() == DataLayout::b_fs_zyx_fsv16 ||
-         params.outputs[0].GetLayout() == DataLayout::bs_fs_yx_bsv32_fsv16 ||
-         params.outputs[0].GetLayout() == DataLayout::bs_fs_yx_bsv16_fsv16) &&
-        params.outputs[0].Feature().v % 16 == 0 && dispatchData.gws[1] % 16 == 0) {
+    if (dispatchData.gws[2] % 16 == 0 &&
+        params.outputs[0].Batch().v % 16 == 0 &&
+        params.outputs[0].Feature().v % 16 == 0 &&
+        dispatchData.gws[1] % 16 == 0 &&
+        (params.outputs[0].GetLayout() == DataLayout::bs_fs_yx_bsv32_fsv16 ||
+         params.outputs[0].GetLayout() == DataLayout::bs_fs_yx_bsv16_fsv16 ||
+         params.outputs[0].GetLayout() == DataLayout::bs_fs_zyx_bsv32_fsv16 ||
+         params.outputs[0].GetLayout() == DataLayout::bs_fs_zyx_bsv16_fsv16 ||
+         params.outputs[0].GetLayout() == DataLayout::bs_fs_zyx_bsv16_fsv32 ||
+         params.outputs[0].GetLayout() == DataLayout::bs_fs_zyx_bsv32_fsv32)) {
+        dispatchData.lws[0] = 1;
+        //dispatchData.gws[1] = ???; calc it below
+        dispatchData.lws[2] = 16;
+        for (auto lws : optimal_lws_values) {
+            if (dispatchData.gws[1] % lws == 0 && lws * dispatchData.lws[2] <= params.engineInfo.maxWorkGroupSize) {
+                dispatchData.lws[1] = lws;
+                break;
+            }
+        }
+    } else if ((params.outputs[0].GetLayout() == DataLayout::b_fs_yx_fsv16 ||
+                params.outputs[0].GetLayout() == DataLayout::b_fs_zyx_fsv16 ||
+                params.outputs[0].GetLayout() == DataLayout::bs_fs_yx_bsv32_fsv16 ||
+                params.outputs[0].GetLayout() == DataLayout::bs_fs_yx_bsv16_fsv16) &&
+               params.outputs[0].Feature().v % 16 == 0 && dispatchData.gws[1] % 16 == 0) {
         dispatchData.lws[0] = 1;
         for (auto lws : optimal_lws_values) {
             if (dispatchData.gws[1] % lws == 0) {
@@ -639,7 +639,7 @@ EltwiseKernelBase::DispatchData EltwiseKernelBase::SetDefault(const eltwise_para
                 params.outputs[0].GetLayout() == DataLayout::bs_fs_zyx_bsv32_fsv32)) {
         if (params.layoutBased || params.int8_quantization || params.broadcast) {
             auto bs_fsv32_local = GetLimitedOptimalLocalWorkGroupSizes({dispatchData.gws[1], dispatchData.gws[2], dispatchData.gws[0]},
-                                                                        params.engineInfo, {32, 32, 1024});
+                                                                       params.engineInfo, {32, 32, 1024});
             dispatchData.lws[0] = bs_fsv32_local[2];
             dispatchData.lws[1] = bs_fsv32_local[0];
             dispatchData.lws[2] = bs_fsv32_local[1];
@@ -653,25 +653,25 @@ EltwiseKernelBase::DispatchData EltwiseKernelBase::SetDefault(const eltwise_para
         }
     } else if ((params.outputs[0].GetLayout() == DataLayout::bs_fs_yx_bsv32_fsv16 ||
                 params.outputs[0].GetLayout() == DataLayout::bs_fs_zyx_bsv32_fsv16) &&
-                (params.outputs[0].Feature().v % 16 != 0 || dispatchData.gws[1] % 16 != 0)) {
-            auto bs_fsv16_local = GetLimitedOptimalLocalWorkGroupSizes({dispatchData.gws[2], dispatchData.gws[0], dispatchData.gws[1]},
-                                                                        params.engineInfo, {32 * 16, 1024, 1024});
-            dispatchData.lws[0] = bs_fsv16_local[1];
-            dispatchData.lws[1] = bs_fsv16_local[2];
-            dispatchData.lws[2] = bs_fsv16_local[0];
+               (params.outputs[0].Feature().v % 16 != 0 || dispatchData.gws[1] % 16 != 0)) {
+        auto bs_fsv16_local = GetLimitedOptimalLocalWorkGroupSizes({dispatchData.gws[2], dispatchData.gws[0], dispatchData.gws[1]},
+                                                                   params.engineInfo, {32 * 16, 1024, 1024});
+        dispatchData.lws[0] = bs_fsv16_local[1];
+        dispatchData.lws[1] = bs_fsv16_local[2];
+        dispatchData.lws[2] = bs_fsv16_local[0];
     } else {
         dispatchData.lws[0] = local[0];
         dispatchData.lws[1] = local[1];
         dispatchData.lws[2] = local[2];
     }
-    std::cout << "GWS:" << std::endl;
-    for (auto& n : dispatchData.gws) {
-        std::cout << n << std::endl;
-    }
-    std::cout << "LWS:" << std::endl;
-    for (auto& n : dispatchData.lws) {
-        std::cout << n << std::endl;
-    }
+//    std::cout << "GWS:" << std::endl;
+//    for (auto& n : dispatchData.gws) {
+//        std::cout << n << std::endl;
+//    }
+//    std::cout << "LWS:" << std::endl;
+//    for (auto& n : dispatchData.lws) {
+//        std::cout << n << std::endl;
+//    }
     return dispatchData;
 }
 

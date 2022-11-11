@@ -4154,13 +4154,7 @@ struct eltwise_random_test_param_generator : std::vector<eltwise_random_test_par
                                              {1, 1, 4, 4},
                                              input_format,
                                              input_format,
-                                             output_format,
-                                             eltwise_mode::sum});
-        push_back(eltwise_random_test_params{type,
-                                             {1, 8, 4, 4},
-                                             {1, 1, 1, 1},
                                              input_format,
-                                             format::bfyx,
                                              output_format,
                                              eltwise_mode::sum});
         return *this;
@@ -4170,8 +4164,8 @@ struct eltwise_random_test_param_generator : std::vector<eltwise_random_test_par
                                                        format::type input_format,
                                                        format::type output_format) {
         push_back(eltwise_random_test_params{type,
-                                             {32, 32, 50, 50},
-                                             {32, 32, 50, 50},
+                                             {1, 10, 10, 10},
+                                             {1, 10, 10, 10},
                                              input_format,
                                              input_format,
                                              output_format,
@@ -4246,9 +4240,10 @@ TEST_P(eltwiseeltwise_random_test_ext_fsv4, random) {
                           testing::ValuesIn(
                               eltwise_random_test_param_generator()
 //                                  .broadcast_params(data_types::f32, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
+                                 .broadcast_params (data_types::f16, format::format::bs_fs_yx_bsv32_fsv16, format::format::bs_fs_yx_bsv32_fsv16)
 //                                  .broadcast_params(data_types::i8, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
 //                                  .broadcast_params(data_types::u8, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
-                                  .simple_params(data_types::f16, format::format::bs_fs_yx_bsv32_fsv16, format::format::bs_fs_yx_bsv32_fsv16)
+//                                  .simple_params(data_types::f16, format::format::bs_fs_yx_bsv32_fsv16, format::format::bs_fs_yx_bsv32_fsv16)
 //                                  .simple_params(data_types::i8, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
 //                                  .simple_params(data_types::u8, format::b_fs_yx_fsv4, format::b_fs_yx_fsv4)
                                   ));
