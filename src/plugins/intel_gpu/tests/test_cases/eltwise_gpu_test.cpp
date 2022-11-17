@@ -4149,14 +4149,14 @@ struct eltwise_random_test_param_generator : std::vector<eltwise_random_test_par
                                              input_format,
                                              output_format,
                                              eltwise_mode::sum});
-        push_back(eltwise_random_test_params{type,
-                                             {1, 5, 4, 4},
-                                             {1, 1, 4, 4},
-                                             input_format,
-                                             input_format,
-                                             input_format,
-                                             output_format,
-                                             eltwise_mode::sum});
+//        push_back(eltwise_random_test_params{type,
+//                                             {1, 5, 4, 4},
+//                                             {1, 1, 4, 4},
+//                                             input_format,
+//                                             input_format,
+//                                             input_format,
+//                                             output_format,
+//                                             eltwise_mode::sum});
         return *this;
     }
 

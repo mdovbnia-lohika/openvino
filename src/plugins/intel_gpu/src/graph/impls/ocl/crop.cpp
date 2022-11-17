@@ -48,7 +48,7 @@ public:
             {{kernel_selector::eltwise_params::InputType::Buffer(0)}, kernel_selector::eltwise_mode::ASSIGN});
         ew_params.inputs[0] = convert_data_tensor(impl_param.get_input_layout(), 1, impl_param.input_offsets[0]);
 
-         ew_params.layoutBased = true;
+        // ew_params.layoutBased = true;
 
         auto& kernel_selector = kernel_selector::eltwise_kernel_selector::Instance();
         auto best_kernels = kernel_selector.GetBestKernels(ew_params, ew_optional_params);

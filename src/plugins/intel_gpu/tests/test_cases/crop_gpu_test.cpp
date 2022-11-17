@@ -1524,8 +1524,8 @@ struct crop_random_test : testing::TestWithParam<crop_random_test_params> {
 
         auto crop_batch_num = 32;
         auto crop_feature_num_1 = 32;
-        auto crop_x_size = 64;
-        auto crop_y_size = 64;
+        auto crop_x_size = 256;
+        auto crop_y_size = 256;
         auto feature_offset_1 = 0;
 
         auto& engine = get_test_engine(get_profiling_config());
@@ -1577,7 +1577,7 @@ struct crop_random_test : testing::TestWithParam<crop_random_test_params> {
         std::string is_opt = do_plain ? " not optimazed " : " optimized ";
 
 
-        std::cout << "Executed time " << is_opt << " " << kernel << " "
+        std::cout << "Executed time " << " "<< exectime << " " << is_opt << " " << kernel << " "
                   << " input_first(" << params.input.to_string() << ")"
                   << " input_second(" << params.output.to_string() << ")" << frm_str << " " << input_type
                   << " " << exectime << std::endl;
@@ -1594,6 +1594,6 @@ INSTANTIATE_TEST_SUITE_P(
     crop_random_test_fsv32,
     crop_random_test,
     testing::Values(
-        crop_random_test_params{data_types::f16, 1, 4, 1, 1, {32, 64, 64, 64}, format::bs_fs_yx_bsv32_fsv16, {32, 32, 64, 64},
+        crop_random_test_params{data_types::f16, 1, 4, 1, 1, {32, 64, 256, 256}, format::bs_fs_yx_bsv32_fsv16, {32, 32, 256, 256},
                                 format::bs_fs_yx_bsv32_fsv16}
         ));
